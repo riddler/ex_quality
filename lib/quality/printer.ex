@@ -74,9 +74,7 @@ defmodule Quality.Printer do
   end
 
   defp do_print_result(%{status: :skipped} = result) do
-    Mix.shell().info(
-      "○ #{result.name}: Skipped (#{format_duration(result.duration_ms)})"
-    )
+    Mix.shell().info("○ #{result.name}: Skipped (#{format_duration(result.duration_ms)})")
   end
 
   defp format_duration(ms) when ms < 1000, do: "#{ms}ms"
