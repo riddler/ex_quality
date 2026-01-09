@@ -2,7 +2,7 @@ defmodule QualityTest do
   use ExUnit.Case
   doctest Quality
 
-  test "greets the world" do
-    assert Quality.hello() == :world
+  test "returns version" do
+    assert Quality.version() == "0.1.0"
   end
 end
