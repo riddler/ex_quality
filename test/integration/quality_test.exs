@@ -4,89 +4,167 @@ defmodule Integration.QualityTest do
   @moduletag :integration
   @moduletag timeout: 180_000
 
-  describe "Mix.Tasks.Quality" do
-    test "can be invoked successfully" do
-      # This is a basic smoke test that verifies the task can run end-to-end
-      # We use System.cmd instead of Mix.Task.run to better simulate actual usage
+  @fixtures_dir Path.expand("../../fixtures", __DIR__)
+  @tmp_dir Path.expand("../../fixtures/tmp", __DIR__)
 
-      {output, exit_code} = System.cmd("mix", ["quality", "--quick"], stderr_to_stdout: true)
+  setup do
+    # Ensure tmp directory exists and is clean
+    File.rm_rf!(@tmp_dir)
+    File.mkdir_p!(@tmp_dir)
 
-      # The task should complete (exit code 0 for success, or non-zero for quality issues)
-      assert exit_code in [0, 1]
+    on_exit(fn ->
+      File.rm_rf!(@tmp_dir)
+    end)
 
-      # Output should contain expected stage names
+    :ok
+  end
+
+  describe "all_passing fixture" do
+    test "passes all quality checks" do
+      fixture_path = copy_fixture("all_passing")
+
+      # Install deps first
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 0, "Expected success but got exit code #{exit_code}. Output:\n#{output}"
+      assert output =~ "All quality checks passed"
       assert output =~ "Format"
       assert output =~ "Compile"
-
-      # Should have final status
-      assert output =~ ~r/(All quality checks passed|quality check.*failed)/
-    end
-
-    test "respects --quick flag" do
-      {output, _exit_code} = System.cmd("mix", ["quality", "--quick"], stderr_to_stdout: true)
-
-      # Quick mode should skip Dialyzer
-      # (Dialyzer won't appear in output when skipped in quick mode)
-      assert is_binary(output)
-    end
-
-    test "can skip individual stages" do
-      {output, _exit_code} =
-        System.cmd("mix", ["quality", "--quick", "--skip-credo"], stderr_to_stdout: true)
-
-      # Should complete
-      assert is_binary(output)
-    end
-
-    test "handles compilation" do
-      {output, exit_code} = System.cmd("mix", ["quality", "--quick"], stderr_to_stdout: true)
-
-      # Should include compile stage
-      assert output =~ "Compile"
-
-      # If compilation succeeded, exit code should reflect overall quality status
-      assert exit_code in [0, 1]
-    end
-
-    test "runs format stage first" do
-      {output, _exit_code} = System.cmd("mix", ["quality", "--quick"], stderr_to_stdout: true)
-
-      # Format should appear early in output
-      assert output =~ "Format"
-    end
-
-    test "provides actionable output on failures" do
-      # Run without quick mode to get more stages
-      {output, exit_code} = System.cmd("mix", ["quality"], stderr_to_stdout: true)
-
-      # If there are failures (exit_code = 1), should show details
-      if exit_code == 1 do
-        # Should have failure details section with dashes
-        assert output =~ "─"
-      end
+      assert output =~ "Test"
     end
   end
 
-  describe "configuration" do
-    @tag :skip
-    test "loads .quality.exs if present" do
-      # This test would require creating a temporary .quality.exs file
-      # Skipped for now but shows how to test config loading
-      :ok
+  describe "format_needed fixture" do
+    test "auto-fixes formatting and passes" do
+      fixture_path = copy_fixture("format_needed")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 0, "Expected success after format. Output:\n#{output}"
+      assert output =~ ~r/Format.*Formatted \d+ file/
+    end
+  end
+
+  describe "credo_issues fixture" do
+    test "fails with credo violations" do
+      fixture_path = copy_fixture("credo_issues")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 1, "Expected failure but got exit code #{exit_code}. Output:\n#{output}"
+      assert output =~ "Credo - FAILED"
+      assert output =~ "lib/credo_issues.ex"
+    end
+  end
+
+  describe "compile_error fixture" do
+    test "fails at compile stage" do
+      fixture_path = copy_fixture("compile_error")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 1, "Expected compilation failure. Output:\n#{output}"
+      assert output =~ ~r/(Compile.*failed|Compilation failed)/
+      assert output =~ "undefined_function"
+    end
+  end
+
+  describe "test_failures fixture" do
+    test "fails with test failures" do
+      fixture_path = copy_fixture("test_failures")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 1, "Expected test failure. Output:\n#{output}"
+      assert output =~ "Test"
+      assert output =~ ~r/(failed|FAILED)/
+    end
+  end
+
+  describe "with_config fixture" do
+    test "respects .quality.exs configuration" do
+      fixture_path = copy_fixture("with_config")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 0, "Expected success. Output:\n#{output}"
+      # Config disables dialyzer, so it shouldn't appear
+      refute output =~ "Dialyzer"
+    end
+  end
+
+  describe "CLI options" do
+    test "--quick flag skips dialyzer" do
+      fixture_path = copy_fixture("all_passing")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, _exit_code} =
+        System.cmd("mix", ["quality", "--quick"], cd: fixture_path, stderr_to_stdout: true)
+
+      # Quick mode should skip Dialyzer
+      refute output =~ "Dialyzer"
+    end
+
+    test "--skip-credo flag skips credo" do
+      fixture_path = copy_fixture("credo_issues")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, _exit_code} =
+        System.cmd("mix", ["quality", "--skip-credo"], cd: fixture_path, stderr_to_stdout: true)
+
+      # Should not run Credo
+      refute output =~ "Credo"
     end
   end
 
   describe "parallel execution" do
-    test "completes in reasonable time" do
+    test "completes in reasonable time with --quick" do
+      fixture_path = copy_fixture("all_passing")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
       start_time = System.monotonic_time(:millisecond)
-
-      {_output, _exit_code} = System.cmd("mix", ["quality", "--quick"], stderr_to_stdout: true)
-
+      {_output, _exit_code} = run_quality(fixture_path, ["--quick"])
       duration = System.monotonic_time(:millisecond) - start_time
 
-      # With parallel execution and quick mode, should complete within 1 minute
-      # (allowing for some overhead)
-      assert duration < 60_000
+      # Should complete within 30 seconds for a minimal project
+      assert duration < 30_000
     end
+  end
+
+  # Helper functions
+
+  defp copy_fixture(fixture_name) do
+    source = Path.join(@fixtures_dir, fixture_name)
+    dest = Path.join(@tmp_dir, fixture_name)
+
+    File.cp_r!(source, dest)
+    dest
+  end
+
+  defp run_quality(fixture_path, args \\ []) do
+    System.cmd("mix", ["quality" | args], cd: fixture_path, stderr_to_stdout: true)
   end
 end

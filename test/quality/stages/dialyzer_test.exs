@@ -1,122 +1,181 @@
 defmodule Quality.Stages.DialyzerTest do
-  use ExUnit.Case, async: false
-
-  @moduletag :integration
+  use ExUnit.Case, async: true
+  use Mimic
 
   alias Quality.Stages.Dialyzer
 
-  @moduletag timeout: 120_000
+  describe "run/1 - no warnings" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        output = """
+        Finding suitable PLTs
+        Checking PLT...
+        [:compiler, :elixir, :kernel, :logger, :stdlib]
+        Looking up modules in dialyxir_erlang-25.3_elixir-1.14.5_deps-dev.plt
+        Finding applications for dialyxir_erlang-25.3_elixir-1.14.5_deps-dev.plt
+        Finding modules for dialyxir_erlang-25.3_elixir-1.14.5_deps-dev.plt
+        Checking 365 modules in dialyxir_erlang-25.3_elixir-1.14.5_deps-dev.plt
+        Done in 0.58s
+        done (passed successfully)
+        done (passed successfully)
+        Proceeding with analysis...
 
-  describe "run/1" do
-    test "returns result map with required fields" do
+        Total errors: 0, Skipped: 0, Unnecessary Skips: 0
+        done in 0m1.23s
+        """
+
+        {output, 0}
+      end)
+
+      :ok
+    end
+
+    test "returns success with no warnings" do
       result = Dialyzer.run([])
 
-      assert is_map(result)
       assert result.name == "Dialyzer"
-      assert result.status in [:ok, :error]
-      assert is_binary(result.output)
-      assert is_map(result.stats)
-      assert is_binary(result.summary)
+      assert result.status == :ok
+      assert result.stats.warning_count == 0
+      assert result.summary == "No warnings"
       assert is_integer(result.duration_ms)
       assert result.duration_ms >= 0
     end
+  end
 
-    test "includes warning_count in stats" do
-      result = Dialyzer.run([])
+  describe "run/1 - warnings found" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        output = """
+        Proceeding with analysis...
 
-      assert Map.has_key?(result.stats, :warning_count)
-      assert is_integer(result.stats.warning_count)
-      assert result.stats.warning_count >= 0
+        lib/my_app/user.ex:42:no_return
+        Function create/1 has no local return.
+        ________________________________________________________________________________
+        lib/my_app/api.ex:15:pattern_match
+        The pattern can never match the type.
+        ________________________________________________________________________________
+
+        Total errors: 2, Skipped: 0, Unnecessary Skips: 0
+        done in 0m45.23s
+        """
+
+        {output, 2}
+      end)
+
+      :ok
     end
 
-    test "returns success when no warnings found" do
+    test "returns error with warning count" do
       result = Dialyzer.run([])
 
-      # If status is :ok, should have zero warnings
-      if result.status == :ok do
-        assert result.stats.warning_count == 0
-        # Summary should indicate success
-        assert result.summary =~ ~r/(No warnings|some files skipped)/
-      end
+      assert result.name == "Dialyzer"
+      assert result.status == :error
+      assert result.stats.warning_count == 2
+      assert result.summary == "2 warnings"
     end
 
-    test "returns error when warnings found" do
+    test "includes file references in output" do
       result = Dialyzer.run([])
 
-      # If status is :error, should have warning details
-      if result.status == :error do
-        # Either has warnings or failed for another reason
-        if result.stats.warning_count > 0 do
-          assert result.summary =~ ~r/warning/
-        else
-          assert result.summary =~ ~r/(failed|error)/i
-        end
-      end
+      assert result.output =~ "lib/my_app/user.ex:42"
+      assert result.output =~ "lib/my_app/api.ex:15"
+    end
+  end
+
+  describe "run/1 - single warning" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        output = """
+        lib/my_app/user.ex:42:no_return
+        Function create/1 has no local return.
+
+        Total errors: 1, Skipped: 0
+        """
+
+        {output, 1}
+      end)
+
+      :ok
     end
 
-    test "summary reflects warning count" do
+    test "formats singular warning correctly" do
       result = Dialyzer.run([])
 
-      if result.status == :error and result.stats.warning_count > 0 do
-        count = result.stats.warning_count
+      assert result.status == :error
+      assert result.stats.warning_count == 1
+      assert result.summary == "1 warning"
+    end
+  end
 
-        case count do
-          1 ->
-            assert result.summary == "1 warning"
+  describe "run/1 - with skipped files" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        output = """
+        Could not get Core Erlang code for: /path/to/beam/file.beam
+        Recompile with +debug_info or analyze the .erl file instead
 
-          n when n > 1 ->
-            assert result.summary == "#{n} warnings"
-        end
-      end
+        Total errors: 0, Skipped: 2, Unnecessary Skips: 0
+        """
+
+        # Exit code 1 but no actual warnings (non-zero for skipped files case)
+        {output, 1}
+      end)
+
+      :ok
     end
 
-    test "handles debug_info errors gracefully" do
+    test "succeeds with skipped files note" do
       result = Dialyzer.run([])
 
-      # If there are debug_info errors but no actual warnings,
-      # the stage should still pass
-      if result.status == :ok and result.summary =~ "skipped" do
-        assert result.stats.warning_count == 0
-      end
+      assert result.status == :ok
+      assert result.stats.warning_count == 0
+      assert result.summary == "No warnings (some files skipped)"
+    end
+  end
+
+  describe "run/1 - timing" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        Process.sleep(10)
+        {"Total errors: 0", 0}
+      end)
+
+      :ok
     end
 
     test "records execution duration" do
       result = Dialyzer.run([])
 
-      # Dialyzer can take a while, especially on first run
-      assert result.duration_ms > 0
-      # Allow up to 2 minutes
-      assert result.duration_ms < 120_000
+      assert result.duration_ms >= 10
+      assert result.duration_ms < 5_000
     end
   end
 
-  describe "configuration" do
+  describe "run/1 - configuration" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+        {"Total errors: 0", 0}
+      end)
+
+      :ok
+    end
+
     test "handles empty config" do
       result = Dialyzer.run([])
 
-      assert is_map(result)
+      assert result.status == :ok
     end
 
-    test "ignores config parameter" do
-      # Dialyzer stage doesn't use config
-      result1 = Dialyzer.run([])
-      result2 = Dialyzer.run(some_option: true)
+    test "ignores config options" do
+      result = Dialyzer.run(some_option: true)
 
-      assert result1.name == result2.name
-    end
-  end
-
-  describe "output parsing" do
-    test "output contains execution details" do
-      result = Dialyzer.run([])
-
-      # Output should have some content
-      assert is_binary(result.output)
-
-      # If there are warnings, output should contain file paths
-      if result.stats.warning_count > 0 do
-        assert result.output =~ ~r/\.exs?/
-      end
+      assert result.status == :ok
     end
   end
 end
