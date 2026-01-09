@@ -24,6 +24,7 @@ defmodule Mix.Tasks.Quality do
   - `--skip-credo` - Skip Credo static analysis
   - `--skip-doctor` - Skip Doctor documentation checks
   - `--skip-gettext` - Skip Gettext translation checks
+  - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
   - `--verbose` - Show full output even on success
 
   ## Auto-Detection
@@ -34,6 +35,7 @@ defmodule Mix.Tasks.Quality do
   - `:dialyxir` → enables Dialyzer stage
   - `:doctor` → enables Doctor stage
   - `:gettext` → enables Gettext translation checks
+  - `:mix_audit` → enables security audit in Dependencies stage
   - `:excoveralls` → uses `mix coveralls` instead of `mix test`
 
   ## Quick Mode
@@ -76,6 +78,7 @@ defmodule Mix.Tasks.Quality do
     skip_credo: :boolean,
     skip_doctor: :boolean,
     skip_gettext: :boolean,
+    skip_dependencies: :boolean,
     verbose: :boolean
   ]
 
@@ -173,6 +176,14 @@ defmodule Mix.Tasks.Quality do
     stages =
       if Quality.Config.stage_enabled?(config, :gettext) do
         [{:gettext, Quality.Stages.Gettext} | stages]
+      else
+        stages
+      end
+
+    # Add Dependencies if enabled
+    stages =
+      if Quality.Config.stage_enabled?(config, :dependencies) do
+        [{:dependencies, Quality.Stages.Dependencies} | stages]
       else
         stages
       end

@@ -1,6 +1,6 @@
 # Quality
 
-A parallel code quality checker for Elixir projects that runs format, compile, credo, dialyzer, and tests concurrently with actionable feedback.
+A parallel code quality checker for Elixir projects that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently with actionable feedback.
 
 **Perfect for iterative development**: Use `mix quality --quick` during active coding, then `mix quality` for full verification before committing.
 
@@ -52,6 +52,7 @@ mix quality --quick
 - ✅ Format (auto-fixes)
 - ✅ Compilation (dev + test)
 - ✅ Credo (static analysis)
+- ✅ Dependencies (unused deps + security audit)
 - ✅ Tests (must pass)
 - ✅ Doctor (if installed)
 - ✅ Gettext (if installed)
@@ -71,6 +72,7 @@ mix quality
 - ✅ Compilation
 - ✅ Credo
 - ✅ Dialyzer (comprehensive type checking)
+- ✅ Dependencies (unused deps + security audit)
 - ✅ Tests with coverage (enforces threshold)
 - ✅ Doctor
 - ✅ Gettext
@@ -113,6 +115,7 @@ mix quality --skip-dialyzer
 mix quality --skip-credo
 mix quality --skip-doctor
 mix quality --skip-gettext
+mix quality --skip-dependencies
 
 # Combine flags
 mix quality --quick --skip-credo
@@ -128,6 +131,7 @@ Quality automatically enables stages based on installed dependencies:
 | Compile | (none) | Always |
 | Credo | `:credo` | If installed |
 | Dialyzer | `:dialyxir` | If installed |
+| Dependencies | (none) / `:mix_audit` | Always (audit if installed) |
 | Doctor | `:doctor` | If installed |
 | Gettext | `:gettext` | If installed |
 | Tests | (none) | Always |
@@ -153,6 +157,12 @@ Create `.quality.exs` in your project root to customize behavior:
   # Doctor options
   doctor: [
     summary_only: true  # Show only summary (default: false)
+  ],
+
+  # Dependencies options
+  dependencies: [
+    check_unused: true,  # Check for unused deps (default: true)
+    audit: true          # Run security audit if mix_audit installed (default: :auto)
   ]
 ]
 ```
@@ -214,6 +224,7 @@ def deps do
     {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
     {:excoveralls, "~> 0.18", only: :test},
     {:doctor, "~> 0.21", only: :dev, runtime: false},
+    {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
 
     # If you use translations
     {:gettext, "~> 0.24"}
