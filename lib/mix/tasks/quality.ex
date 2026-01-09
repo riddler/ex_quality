@@ -84,7 +84,7 @@ defmodule Mix.Tasks.Quality do
   """
   def run(args) do
     {opts, _remaining} = OptionParser.parse!(args, switches: @switches)
-    config = build_config(opts)
+    config = Quality.Config.load(opts)
 
     Mix.shell().info("Running quality checks...\n")
 
@@ -120,30 +120,6 @@ defmodule Mix.Tasks.Quality do
     end
   end
 
-  # Temporary config builder until Quality.Config is implemented
-  defp build_config(opts) do
-    [
-      quick: Keyword.get(opts, :quick, false),
-      verbose: Keyword.get(opts, :verbose, false),
-      compile: [
-        warnings_as_errors: true
-      ],
-      credo: [
-        enabled: !Keyword.get(opts, :skip_credo, false),
-        strict: true
-      ],
-      dialyzer: [
-        enabled: !Keyword.get(opts, :skip_dialyzer, false)
-      ],
-      doctor: [
-        enabled: !Keyword.get(opts, :skip_doctor, false)
-      ],
-      gettext: [
-        enabled: !Keyword.get(opts, :skip_gettext, false)
-      ]
-    ]
-  end
-
   defp run_analysis_stages(config) do
     Quality.Printer.start_link()
 
@@ -169,45 +145,33 @@ defmodule Mix.Tasks.Quality do
     quick_mode = Keyword.get(config, :quick, false)
     stages = []
 
-    # Add Credo if not skipped and available
-    credo_config = Keyword.get(config, :credo, [])
-    credo_enabled = Keyword.get(credo_config, :enabled, true)
-
+    # Add Credo if enabled
     stages =
-      if credo_enabled and Quality.Tools.available?(:credo) do
+      if Quality.Config.stage_enabled?(config, :credo) do
         [{:credo, Quality.Stages.Credo} | stages]
       else
         stages
       end
 
-    # Add Dialyzer if not skipped, not in quick mode, and available
-    dialyzer_config = Keyword.get(config, :dialyzer, [])
-    dialyzer_enabled = Keyword.get(dialyzer_config, :enabled, true)
-
+    # Add Dialyzer if enabled and not in quick mode
     stages =
-      if dialyzer_enabled and not quick_mode and Quality.Tools.available?(:dialyzer) do
+      if Quality.Config.stage_enabled?(config, :dialyzer) and not quick_mode do
         [{:dialyzer, Quality.Stages.Dialyzer} | stages]
       else
         stages
       end
 
-    # Add Doctor if not skipped and available
-    doctor_config = Keyword.get(config, :doctor, [])
-    doctor_enabled = Keyword.get(doctor_config, :enabled, true)
-
+    # Add Doctor if enabled
     stages =
-      if doctor_enabled and Quality.Tools.available?(:doctor) do
+      if Quality.Config.stage_enabled?(config, :doctor) do
         [{:doctor, Quality.Stages.Doctor} | stages]
       else
         stages
       end
 
-    # Add Gettext if not skipped and available
-    gettext_config = Keyword.get(config, :gettext, [])
-    gettext_enabled = Keyword.get(gettext_config, :enabled, true)
-
+    # Add Gettext if enabled
     stages =
-      if gettext_enabled and Quality.Tools.available?(:gettext) do
+      if Quality.Config.stage_enabled?(config, :gettext) do
         [{:gettext, Quality.Stages.Gettext} | stages]
       else
         stages
