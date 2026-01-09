@@ -1,4 +1,4 @@
-defmodule Quality.Config do
+defmodule ExQuality.Config do
   @moduledoc """
   Loads and merges configuration from multiple sources.
 
@@ -95,10 +95,10 @@ defmodule Quality.Config do
   ## Examples
 
       # Load with CLI options
-      config = Quality.Config.load(quick: true, skip_dialyzer: true)
+      config = ExQuality.Config.load(quick: true, skip_dialyzer: true)
 
       # Load with defaults only
-      config = Quality.Config.load()
+      config = ExQuality.Config.load()
   """
   @spec load(keyword()) :: keyword()
   def load(cli_opts \\ []) do
@@ -122,12 +122,12 @@ defmodule Quality.Config do
 
   ## Examples
 
-      config = Quality.Config.load()
-      Quality.Config.stage_enabled?(config, :credo)
+      config = ExQuality.Config.load()
+      ExQuality.Config.stage_enabled?(config, :credo)
       #=> true (if credo is installed)
 
-      config = Quality.Config.load(skip_credo: true)
-      Quality.Config.stage_enabled?(config, :credo)
+      config = ExQuality.Config.load(skip_credo: true)
+      ExQuality.Config.stage_enabled?(config, :credo)
       #=> false
   """
   @spec stage_enabled?(keyword(), atom()) :: boolean()
@@ -144,7 +144,7 @@ defmodule Quality.Config do
   end
 
   defp resolve_auto_detection do
-    tools = Quality.Tools.detect()
+    tools = ExQuality.Tools.detect()
 
     [
       credo: [available: tools.credo],

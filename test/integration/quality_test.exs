@@ -1,4 +1,4 @@
-defmodule Integration.QualityTest do
+defmodule Integration.ExQualityTest do
   use ExUnit.Case, async: false
 
   @moduletag :integration

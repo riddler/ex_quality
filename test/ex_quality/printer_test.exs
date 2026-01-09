@@ -1,8 +1,8 @@
-defmodule Quality.PrinterTest do
+defmodule ExQuality.PrinterTest do
   use ExUnit.Case, async: false
   import ExUnit.CaptureIO
 
-  alias Quality.Printer
+  alias ExQuality.Printer
 
   setup do
     # Start the printer for each test
@@ -12,7 +12,7 @@ defmodule Quality.PrinterTest do
       # Ensure printer is stopped after each test
       # Catch exit in case process already stopped (race condition)
       try do
-        if Process.whereis(Quality.Printer) do
+        if Process.whereis(ExQuality.Printer) do
           Printer.stop()
         end
       catch
@@ -207,19 +207,19 @@ defmodule Quality.PrinterTest do
       # Start new one
       assert {:ok, pid} = Printer.start_link()
       assert is_pid(pid)
-      assert Process.whereis(Quality.Printer) != nil
+      assert Process.whereis(ExQuality.Printer) != nil
 
       # Stop it
       assert :ok = Printer.stop()
       Process.sleep(10)
-      assert Process.whereis(Quality.Printer) == nil
+      assert Process.whereis(ExQuality.Printer) == nil
 
       # Start again for cleanup
       {:ok, _pid} = Printer.start_link()
     end
 
     test "is registered with module name" do
-      assert Process.whereis(Quality.Printer) != nil
+      assert Process.whereis(ExQuality.Printer) != nil
     end
   end
 

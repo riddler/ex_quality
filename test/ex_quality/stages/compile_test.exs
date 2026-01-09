@@ -1,8 +1,8 @@
-defmodule Quality.Stages.CompileTest do
+defmodule ExQuality.Stages.CompileTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Compile
+  alias ExQuality.Stages.Compile
 
   describe "run/1 - successful compilation" do
     setup do

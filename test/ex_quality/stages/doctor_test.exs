@@ -1,8 +1,8 @@
-defmodule Quality.Stages.DoctorTest do
+defmodule ExQuality.Stages.DoctorTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Doctor
+  alias ExQuality.Stages.Doctor
 
   describe "run/1 - passing documentation" do
     setup do

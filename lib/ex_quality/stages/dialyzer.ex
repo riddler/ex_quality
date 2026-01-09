@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Dialyzer do
+defmodule ExQuality.Stages.Dialyzer do
   @moduledoc """
   Runs Dialyzer type checking on the codebase.
 
@@ -15,7 +15,7 @@ defmodule Quality.Stages.Dialyzer do
   Returns success if no type warnings are found. Handles PLT building
   and debug_info issues gracefully.
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(_config) do
     start_time = System.monotonic_time(:millisecond)
 

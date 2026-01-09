@@ -16,7 +16,7 @@ defmodule TestFailures.MixProject do
 
   defp deps do
     [
-      {:quality, path: "../../..", only: [:dev, :test], runtime: false},
+      {:ex_quality, path: "../../..", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end

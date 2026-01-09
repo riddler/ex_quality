@@ -1,12 +1,12 @@
-defmodule Quality.MixProject do
+defmodule ExQuality.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/riddler/quality"
+  @source_url "https://github.com/riddler/ex_quality"
 
   def project do
     [
-      app: :quality,
+      app: :ex_quality,
       version: @version,
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
@@ -14,7 +14,7 @@ defmodule Quality.MixProject do
       description: description(),
       package: package(),
       docs: docs(),
-      name: "Quality",
+      name: "ExQuality",
       source_url: @source_url,
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [

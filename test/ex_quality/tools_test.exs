@@ -1,7 +1,7 @@
-defmodule Quality.ToolsTest do
+defmodule ExQuality.ToolsTest do
   use ExUnit.Case, async: true
 
-  alias Quality.Tools
+  alias ExQuality.Tools
 
   describe "detect/0" do
     test "returns a map with all tool keys" do

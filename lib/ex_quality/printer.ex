@@ -1,4 +1,4 @@
-defmodule Quality.Printer do
+defmodule ExQuality.Printer do
   @moduledoc """
   Serializes output from parallel stages to prevent interleaving.
 
@@ -9,12 +9,12 @@ defmodule Quality.Printer do
 
   ## Usage
 
-      {:ok, _pid} = Quality.Printer.start_link()
+      {:ok, _pid} = ExQuality.Printer.start_link()
 
       # From multiple parallel tasks:
-      Quality.Printer.print_result(result)
+      ExQuality.Printer.print_result(result)
 
-      Quality.Printer.stop()
+      ExQuality.Printer.stop()
   """
 
   use Agent
@@ -41,7 +41,7 @@ defmodule Quality.Printer do
   Blocks until any concurrent print operation completes,
   then prints the full result without interruption.
   """
-  @spec print_result(Quality.Stage.result()) :: :ok
+  @spec print_result(ExQuality.Stage.result()) :: :ok
   def print_result(result) do
     Agent.get_and_update(__MODULE__, fn state ->
       # Print while holding the agent lock

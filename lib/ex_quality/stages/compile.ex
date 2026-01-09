@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Compile do
+defmodule ExQuality.Stages.Compile do
   @moduledoc """
   Compiles the project in both dev and test environments.
 
@@ -16,7 +16,7 @@ defmodule Quality.Stages.Compile do
   Compiles both dev and test environments in parallel. If either
   compilation fails, the entire stage fails with the error output.
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 

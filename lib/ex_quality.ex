@@ -1,6 +1,6 @@
-defmodule Quality do
+defmodule ExQuality do
   @moduledoc """
-  Quality - A parallel code quality checker for Elixir projects.
+  ExQuality - A parallel code quality checker for Elixir projects.
 
   Automatically fixes formatting issues, then runs all analysis stages
   in parallel with streaming output and actionable feedback.
@@ -39,7 +39,7 @@ defmodule Quality do
   @version Mix.Project.config()[:version]
 
   @doc """
-  Returns the version of the Quality package.
+  Returns the version of the ExQuality package.
   """
   @spec version() :: String.t()
   def version, do: @version

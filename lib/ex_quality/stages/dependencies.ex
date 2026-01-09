@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Dependencies do
+defmodule ExQuality.Stages.Dependencies do
   @moduledoc """
   Checks dependency health by running:
 
@@ -22,7 +22,7 @@ defmodule Quality.Stages.Dependencies do
   - `audit` - Run security audit if available (default: :auto)
   - `audit_available` - Whether mix_audit is available (set by auto-detection)
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 

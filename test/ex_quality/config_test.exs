@@ -1,7 +1,7 @@
-defmodule Quality.ConfigTest do
+defmodule ExQuality.ConfigTest do
   use ExUnit.Case, async: true
 
-  alias Quality.Config
+  alias ExQuality.Config
 
   describe "load/1" do
     test "loads default configuration" do

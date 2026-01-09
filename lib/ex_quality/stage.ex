@@ -1,4 +1,4 @@
-defmodule Quality.Stage do
+defmodule ExQuality.Stage do
   @moduledoc """
   Type definitions for quality check stage results.
 

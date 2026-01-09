@@ -52,7 +52,7 @@ defmodule Mix.Tasks.Quality do
   ## Configuration
 
   Create `.quality.exs` in your project root to customize behavior
-  or override auto-detection. See `Quality.Config` for options.
+  or override auto-detection. See `ExQuality.Config` for options.
 
   ## Example Output
 
@@ -87,16 +87,16 @@ defmodule Mix.Tasks.Quality do
   """
   def run(args) do
     {opts, _remaining} = OptionParser.parse!(args, switches: @switches)
-    config = Quality.Config.load(opts)
+    config = ExQuality.Config.load(opts)
 
     Mix.shell().info("Running quality checks...\n")
 
     # Phase 1: Auto-fix (format)
-    format_result = Quality.Stages.Format.run(config)
+    format_result = ExQuality.Stages.Format.run(config)
     display_phase_result(format_result)
 
     # Phase 2: Compile (blocking gate)
-    compile_result = Quality.Stages.Compile.run(config)
+    compile_result = ExQuality.Stages.Compile.run(config)
     display_phase_result(compile_result)
 
     if compile_result.status == :error do
@@ -124,7 +124,7 @@ defmodule Mix.Tasks.Quality do
   end
 
   defp run_analysis_stages(config) do
-    Quality.Printer.start_link()
+    ExQuality.Printer.start_link()
 
     try do
       stages = build_analysis_stages(config)
@@ -133,14 +133,14 @@ defmodule Mix.Tasks.Quality do
         Enum.map(stages, fn {_name, module} ->
           Task.async(fn ->
             result = module.run(config)
-            Quality.Printer.print_result(result)
+            ExQuality.Printer.print_result(result)
             result
           end)
         end)
 
       Enum.map(tasks, &Task.await(&1, :infinity))
     after
-      Quality.Printer.stop()
+      ExQuality.Printer.stop()
     end
   end
 
@@ -150,46 +150,46 @@ defmodule Mix.Tasks.Quality do
 
     # Add Credo if enabled
     stages =
-      if Quality.Config.stage_enabled?(config, :credo) do
-        [{:credo, Quality.Stages.Credo} | stages]
+      if ExQuality.Config.stage_enabled?(config, :credo) do
+        [{:credo, ExQuality.Stages.Credo} | stages]
       else
         stages
       end
 
     # Add Dialyzer if enabled and not in quick mode
     stages =
-      if Quality.Config.stage_enabled?(config, :dialyzer) and not quick_mode do
-        [{:dialyzer, Quality.Stages.Dialyzer} | stages]
+      if ExQuality.Config.stage_enabled?(config, :dialyzer) and not quick_mode do
+        [{:dialyzer, ExQuality.Stages.Dialyzer} | stages]
       else
         stages
       end
 
     # Add Doctor if enabled
     stages =
-      if Quality.Config.stage_enabled?(config, :doctor) do
-        [{:doctor, Quality.Stages.Doctor} | stages]
+      if ExQuality.Config.stage_enabled?(config, :doctor) do
+        [{:doctor, ExQuality.Stages.Doctor} | stages]
       else
         stages
       end
 
     # Add Gettext if enabled
     stages =
-      if Quality.Config.stage_enabled?(config, :gettext) do
-        [{:gettext, Quality.Stages.Gettext} | stages]
+      if ExQuality.Config.stage_enabled?(config, :gettext) do
+        [{:gettext, ExQuality.Stages.Gettext} | stages]
       else
         stages
       end
 
     # Add Dependencies if enabled
     stages =
-      if Quality.Config.stage_enabled?(config, :dependencies) do
-        [{:dependencies, Quality.Stages.Dependencies} | stages]
+      if ExQuality.Config.stage_enabled?(config, :dependencies) do
+        [{:dependencies, ExQuality.Stages.Dependencies} | stages]
       else
         stages
       end
 
     # Tests always run (but coverage enforcement skipped in quick mode)
-    [{:test, Quality.Stages.Test} | stages]
+    [{:test, ExQuality.Stages.Test} | stages]
   end
 
   defp display_phase_result(result) do

@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Test do
+defmodule ExQuality.Stages.Test do
   @moduledoc """
   Runs the test suite with optional coverage analysis.
 
@@ -19,12 +19,12 @@ defmodule Quality.Stages.Test do
 
   - `quick` - Use `mix test` instead of `mix coveralls` (default: false)
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 
     quick_mode = Keyword.get(config, :quick, false)
-    coverage_available = Quality.Tools.available?(:coverage)
+    coverage_available = ExQuality.Tools.available?(:coverage)
 
     # Use coveralls if available and not in quick mode
     use_coveralls = coverage_available and not quick_mode

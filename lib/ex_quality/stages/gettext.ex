@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Gettext do
+defmodule ExQuality.Stages.Gettext do
   @moduledoc """
   Checks translation completeness using gettext.
 
@@ -14,7 +14,7 @@ defmodule Quality.Stages.Gettext do
   @doc """
   Runs the gettext stage.
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(_config) do
     start_time = System.monotonic_time(:millisecond)
 

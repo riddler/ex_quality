@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Credo do
+defmodule ExQuality.Stages.Credo do
   @moduledoc """
   Runs Credo static analysis on the codebase.
 
@@ -17,7 +17,7 @@ defmodule Quality.Stages.Credo do
   - `strict` - Use `--strict` mode (default: true)
   - `all` - Use `--all` flag to check all files (default: false)
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 

@@ -1,4 +1,4 @@
-# Quality
+# ExQuality
 
 A parallel code quality checker for Elixir projects that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently with actionable feedback.
 
@@ -21,7 +21,7 @@ A parallel code quality checker for Elixir projects that runs format, compile, c
 # Add to mix.exs
 def deps do
   [
-    {:quality, "~> 0.1.0", only: :dev, runtime: false}
+    {:ex_quality, "~> 0.1.0", only: :dev, runtime: false}
   ]
 end
 ```
@@ -81,7 +81,7 @@ mix quality
 
 ## Execution Phases
 
-Quality runs in three phases:
+ExQuality runs in three phases:
 
 ### Phase 1: Auto-fix
 ```
@@ -123,7 +123,7 @@ mix quality --quick --skip-credo
 
 ## Auto-Detection
 
-Quality automatically enables stages based on installed dependencies:
+ExQuality automatically enables stages based on installed dependencies:
 
 | Stage | Requires | Auto-enabled? |
 |-------|----------|---------------|
@@ -137,7 +137,7 @@ Quality automatically enables stages based on installed dependencies:
 | Tests | (none) | Always |
 | Coverage | `:excoveralls` | If installed |
 
-**Example**: If you have credo and dialyxir in deps, Quality will run both automatically.
+**Example**: If you have credo and dialyxir in deps, ExQuality will run both automatically.
 
 ## Configuration
 
@@ -180,7 +180,7 @@ Configuration is merged in this order (later wins):
 
 ### Coverage Threshold
 
-Coverage threshold is **NOT** configured in Quality. It reads from your existing excoveralls configuration:
+Coverage threshold is **NOT** configured in ExQuality. It reads from your existing excoveralls configuration:
 
 - `coveralls.json` → `minimum_coverage` or `coverage_threshold`
 - `mix.exs` → `test_coverage: [minimum_coverage: 80.0]`
@@ -189,7 +189,7 @@ This ensures a **single source of truth** for coverage requirements.
 
 ## Actionable Output
 
-When checks fail, Quality shows the complete tool output with file:line references:
+When checks fail, ExQuality shows the complete tool output with file:line references:
 
 ```bash
 ✗ Credo: 5 issue(s) (1 refactoring, 2 readability, 2 design) (0.4s)
@@ -217,7 +217,7 @@ For the best experience, add these to your `mix.exs`:
 def deps do
   [
     # Quality checker
-    {:quality, "~> 0.1.0", only: :dev, runtime: false},
+    {:ex_quality, "~> 0.1.0", only: :dev, runtime: false},
 
     # Recommended quality tools
     {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -290,8 +290,8 @@ git commit -m "Add feature"
 
 ## Comparison with Alternatives
 
-| Feature | Quality | ex_check | al_check |
-|---------|---------|----------|----------|
+| Feature | ExQuality | ex_check | al_check |
+|---------|-----------|----------|----------|
 | Parallel execution | ✅ | ✅ | ✅ |
 | Streaming output | ✅ | ❌ | ❌ |
 | Auto-fix first | ✅ | ✅ | ✅ |
@@ -301,7 +301,7 @@ git commit -m "Add feature"
 | Config file | .quality.exs | .check.exs | alcheck.toml |
 | Actionable output | ✅ Full tool output | ✅ | ✅ |
 
-**Quality's differentiators:**
+**ExQuality's differentiators:**
 1. **Quick mode** - Fast iteration during development
 2. **Streaming output** - See results as each check completes
 3. **Auto-fix first** - Format code before analysis
@@ -332,15 +332,15 @@ Or create `.credo.exs` to configure credo directly.
 
 ### "I don't have doctor/gettext"
 
-Quality auto-detects and skips them. No configuration needed.
+ExQuality auto-detects and skips them. No configuration needed.
 
 ### "Tests are failing"
 
-Quality shows the full test output with file:line references. Look for the failure details in the output.
+ExQuality shows the full test output with file:line references. Look for the failure details in the output.
 
 ## Philosophy
 
-**Quality is designed for rapid, iterative development with confidence.**
+**ExQuality is designed for rapid, iterative development with confidence.**
 
 1. **Fast feedback loop**: `--quick` gives you sub-second feedback on most changes
 2. **Comprehensive verification**: Full mode ensures everything is correct
@@ -354,4 +354,4 @@ MIT
 
 ## Contributing
 
-Issues and pull requests welcome at [https://github.com/riddler/quality](https://github.com/riddler/quality)
+Issues and pull requests welcome at [https://github.com/riddler/ex_quality](https://github.com/riddler/ex_quality)

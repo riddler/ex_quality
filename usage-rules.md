@@ -1,8 +1,8 @@
-# Quality - Usage Rules for LLM Assistants
+# ExQuality - Usage Rules for LLM Assistants
 
 ## Overview
 
-Quality is a parallel code quality checker for Elixir that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently.
+ExQuality is a parallel code quality checker for Elixir that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently.
 
 ## Core Commands
 
@@ -37,7 +37,7 @@ Flags can be combined: `mix quality --quick --skip-credo`
 
 ## Auto-Detection
 
-Quality automatically enables stages based on installed dependencies:
+ExQuality automatically enables stages based on installed dependencies:
 
 - **Credo** - Auto-enabled if `:credo` installed
 - **Dialyzer** - Auto-enabled if `:dialyxir` installed
@@ -67,7 +67,7 @@ Create `.quality.exs` in project root:
 ]
 ```
 
-## Working with Quality Output
+## Working with ExQuality Output
 
 ### Success
 ```
@@ -81,7 +81,7 @@ Create `.quality.exs` in project root:
 ```
 
 ### Failures
-When quality fails, output includes **file:line references**:
+When ExQuality fails, output includes **file:line references**:
 - Parse file:line to locate issues
 - Read affected files
 - Explain what needs fixing
@@ -121,10 +121,10 @@ mix quality --quick  # Skips coverage enforcement
 
 **Unused dependencies found:**
 ```bash
-# Quality tells you which deps to remove
+# ExQuality tells you which deps to remove
 mix deps.unlock package_name
 ```
 
 **Security vulnerabilities found:**
 - Update affected packages to patched versions
-- Follow recommendations in Quality output
+- Follow recommendations in ExQuality output
