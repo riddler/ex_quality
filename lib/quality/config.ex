@@ -44,6 +44,8 @@ defmodule Quality.Config do
   - `compile.warnings_as_errors` - Treat warnings as errors (default: true)
   - `credo.strict` - Use strict mode (default: true)
   - `credo.all` - Check all files (default: false)
+  - `dependencies.check_unused` - Check for unused dependencies (default: true)
+  - `dependencies.audit` - Run security audit if available (default: :auto)
   - `doctor.summary_only` - Show only summary (default: false)
   """
 
@@ -69,6 +71,11 @@ defmodule Quality.Config do
     ],
     gettext: [
       enabled: :auto
+    ],
+    dependencies: [
+      enabled: :auto,
+      check_unused: true,
+      audit: :auto
     ],
     test: [
       # Coverage: uses excoveralls if available, threshold from coveralls config
@@ -144,6 +151,7 @@ defmodule Quality.Config do
       dialyzer: [available: tools.dialyzer],
       doctor: [available: tools.doctor],
       gettext: [available: tools.gettext],
+      dependencies: [audit_available: tools.audit],
       test: [coverage_available: tools.coverage]
     ]
   end
@@ -200,6 +208,13 @@ defmodule Quality.Config do
     config =
       if opts[:skip_gettext] do
         Keyword.put(config, :gettext, enabled: false)
+      else
+        config
+      end
+
+    config =
+      if opts[:skip_dependencies] do
+        Keyword.put(config, :dependencies, enabled: false)
       else
         config
       end

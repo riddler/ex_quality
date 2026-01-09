@@ -13,7 +13,8 @@ defmodule Quality.Tools do
         dialyzer: true,
         doctor: false,
         coverage: true,
-        gettext: false
+        gettext: false,
+        audit: true
       }
 
       Quality.Tools.available?(:credo)
@@ -25,7 +26,8 @@ defmodule Quality.Tools do
     dialyzer: :dialyxir,
     doctor: :doctor,
     coverage: :excoveralls,
-    gettext: :gettext
+    gettext: :gettext,
+    audit: :mix_audit
   }
 
   @doc """
