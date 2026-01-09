@@ -4,6 +4,37 @@
 
 ExQuality is a parallel code quality checker for Elixir that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently.
 
+## First-time Setup
+
+After adding `:ex_quality` to your dependencies:
+
+```bash
+# Interactive setup (recommended)
+mix quality.init
+
+# Use defaults without prompts
+mix quality.init --skip-prompts
+
+# Install all available tools
+mix quality.init --all
+```
+
+This will:
+- Detect which tools are already installed
+- Prompt for which tools to add (credo, dialyzer, excoveralls recommended)
+- Add dependencies to mix.exs with latest versions
+- Run `mix deps.get` automatically
+- Create tool configs (.credo.exs, coveralls.json, etc.)
+- Create .quality.exs configuration file
+
+**Available tools:**
+- `credo` - Static code analysis
+- `dialyzer` - Type checking (dialyxir)
+- `coverage` - Test coverage (excoveralls)
+- `doctor` - Documentation coverage
+- `audit` - Security scanning (mix_audit)
+- `gettext` - Internationalization
+
 ## Core Commands
 
 ### Quick mode (development)

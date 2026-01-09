@@ -27,6 +27,27 @@ end
 ```
 
 ```bash
+# Install dependencies
+mix deps.get
+
+# Set up quality tools (interactive)
+mix quality.init
+
+# Or use defaults without prompts
+mix quality.init --skip-prompts
+```
+
+This will:
+1. Detect which tools are already installed
+2. Prompt you to select additional tools (credo, dialyzer, excoveralls recommended)
+3. Add dependencies to mix.exs
+4. Run `mix deps.get`
+5. Set up tool configurations (.credo.exs, coveralls.json, etc.)
+6. Create .quality.exs for customization
+
+Then run quality checks:
+
+```bash
 # During development - fast feedback
 mix quality --quick
 
