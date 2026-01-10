@@ -28,16 +28,16 @@ defmodule Quality.ToolsTest do
     end
 
     test "detects tools based on actual project dependencies" do
-      # The Quality project has credo and dialyxir in mix.exs
+      # The Quality project has credo, dialyxir, and excoveralls in mix.exs
       result = Tools.detect()
 
       # These tools ARE in the Quality project dependencies
       assert result.credo == true
       assert result.dialyzer == true
+      assert result.coverage == true
 
       # These tools are NOT in the Quality project dependencies
       assert result.doctor == false
-      assert result.coverage == false
       assert result.gettext == false
       assert result.audit == false
     end

@@ -21,3 +21,6 @@ quality-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Fixture temp directories (copied fixtures during integration tests)
+/fixtures/tmp/

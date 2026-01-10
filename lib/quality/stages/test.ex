@@ -146,7 +146,7 @@ defmodule Quality.Stages.Test do
   defp format_success_summary(stats, use_coveralls) do
     test_summary = format_test_counts(stats)
 
-    if use_coveralls and stats[:coverage] do
+    if use_coveralls and stats[:coverage] != nil do
       "#{test_summary}, #{format_coverage(stats[:coverage])} coverage"
     else
       test_summary
@@ -157,14 +157,14 @@ defmodule Quality.Stages.Test do
     if stats[:failed_count] && stats[:failed_count] > 0 do
       test_summary = "#{stats[:failed_count]} of #{stats[:test_count]} failed"
 
-      if use_coveralls and stats[:coverage] do
+      if use_coveralls and stats[:coverage] != nil do
         "#{test_summary}, #{format_coverage(stats[:coverage])} coverage"
       else
         test_summary
       end
     else
       # Coverage failure
-      if use_coveralls and stats[:coverage] and stats[:coverage_required] do
+      if use_coveralls and stats[:coverage] != nil and stats[:coverage_required] != nil do
         "Coverage #{format_coverage(stats[:coverage])} (required: #{format_coverage(stats[:coverage_required])})"
       else
         "Tests failed"

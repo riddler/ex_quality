@@ -1,5 +1,6 @@
 defmodule Quality.PrinterTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureIO
 
   alias Quality.Printer
 
@@ -33,7 +34,9 @@ defmodule Quality.PrinterTest do
         stats: %{}
       }
 
-      assert :ok = Printer.print_result(result)
+      capture_io(fn ->
+        assert :ok = Printer.print_result(result)
+      end)
     end
 
     test "successfully prints error result" do
@@ -46,7 +49,9 @@ defmodule Quality.PrinterTest do
         stats: %{}
       }
 
-      assert :ok = Printer.print_result(result)
+      capture_io(fn ->
+        assert :ok = Printer.print_result(result)
+      end)
     end
 
     test "successfully prints skipped result" do
@@ -59,124 +64,138 @@ defmodule Quality.PrinterTest do
         stats: %{}
       }
 
-      assert :ok = Printer.print_result(result)
+      capture_io(fn ->
+        assert :ok = Printer.print_result(result)
+      end)
     end
 
     test "handles various duration values" do
-      # Test milliseconds (< 1000ms)
-      result_ms = %{
-        name: "Fast",
-        status: :ok,
-        summary: "Done",
-        duration_ms: 500,
-        output: "",
-        stats: %{}
-      }
+      capture_io(fn ->
+        # Test milliseconds (< 1000ms)
+        result_ms = %{
+          name: "Fast",
+          status: :ok,
+          summary: "Done",
+          duration_ms: 500,
+          output: "",
+          stats: %{}
+        }
 
-      assert :ok = Printer.print_result(result_ms)
+        assert :ok = Printer.print_result(result_ms)
 
-      # Test seconds (>= 1000ms)
-      result_s = %{
-        name: "Slow",
-        status: :ok,
-        summary: "Done",
-        duration_ms: 45_300,
-        output: "",
-        stats: %{}
-      }
+        # Test seconds (>= 1000ms)
+        result_s = %{
+          name: "Slow",
+          status: :ok,
+          summary: "Done",
+          duration_ms: 45_300,
+          output: "",
+          stats: %{}
+        }
 
-      assert :ok = Printer.print_result(result_s)
+        assert :ok = Printer.print_result(result_s)
 
-      # Test exactly 1000ms
-      result_exact = %{
-        name: "Exact",
-        status: :ok,
-        summary: "Done",
-        duration_ms: 1000,
-        output: "",
-        stats: %{}
-      }
+        # Test exactly 1000ms
+        result_exact = %{
+          name: "Exact",
+          status: :ok,
+          summary: "Done",
+          duration_ms: 1000,
+          output: "",
+          stats: %{}
+        }
 
-      assert :ok = Printer.print_result(result_exact)
+        assert :ok = Printer.print_result(result_exact)
 
-      # Test 0ms
-      result_zero = %{
-        name: "Instant",
-        status: :ok,
-        summary: "Done",
-        duration_ms: 0,
-        output: "",
-        stats: %{}
-      }
+        # Test 0ms
+        result_zero = %{
+          name: "Instant",
+          status: :ok,
+          summary: "Done",
+          duration_ms: 0,
+          output: "",
+          stats: %{}
+        }
 
-      assert :ok = Printer.print_result(result_zero)
+        assert :ok = Printer.print_result(result_zero)
+      end)
     end
 
     test "handles concurrent prints without errors" do
-      # Create multiple results
-      results =
-        Enum.map(1..10, fn i ->
-          %{
-            name: "Stage #{i}",
-            status: :ok,
-            summary: "Done",
-            duration_ms: 100 * i,
-            output: "",
-            stats: %{}
-          }
-        end)
-
-      # Print them concurrently
-      tasks =
-        Enum.map(results, fn result ->
-          Task.async(fn ->
-            Printer.print_result(result)
+      capture_io(fn ->
+        # Create multiple results
+        results =
+          Enum.map(1..10, fn i ->
+            %{
+              name: "Stage #{i}",
+              status: :ok,
+              summary: "Done",
+              duration_ms: 100 * i,
+              output: "",
+              stats: %{}
+            }
           end)
-        end)
 
-      # Wait for all tasks and verify they all succeed
-      results = Enum.map(tasks, &Task.await/1)
-      assert Enum.all?(results, &(&1 == :ok))
+        # Print them concurrently
+        tasks =
+          Enum.map(results, fn result ->
+            Task.async(fn ->
+              Printer.print_result(result)
+            end)
+          end)
+
+        # Wait for all tasks and verify they all succeed
+        results = Enum.map(tasks, &Task.await/1)
+        assert Enum.all?(results, &(&1 == :ok))
+      end)
     end
 
     test "handles all result fields correctly" do
-      result = %{
-        name: "Complete Test",
-        status: :ok,
-        summary: "Test summary",
-        duration_ms: 1234,
-        output: "some output",
-        stats: %{test_count: 42, passed: 40, failed: 2}
-      }
+      capture_io(fn ->
+        result = %{
+          name: "Complete Test",
+          status: :ok,
+          summary: "Test summary",
+          duration_ms: 1234,
+          output: "some output",
+          stats: %{test_count: 42, passed: 40, failed: 2}
+        }
 
-      assert :ok = Printer.print_result(result)
+        assert :ok = Printer.print_result(result)
+      end)
     end
   end
 
   describe "print_message/1" do
     test "successfully prints a message" do
-      assert :ok = Printer.print_message("Hello, world!")
+      capture_io(fn ->
+        assert :ok = Printer.print_message("Hello, world!")
+      end)
     end
 
     test "handles concurrent messages without errors" do
-      messages = Enum.map(1..10, &"Message #{&1}")
+      capture_io(fn ->
+        messages = Enum.map(1..10, &"Message #{&1}")
 
-      tasks =
-        Enum.map(messages, fn msg ->
-          Task.async(fn ->
-            Printer.print_message(msg)
+        tasks =
+          Enum.map(messages, fn msg ->
+            Task.async(fn ->
+              Printer.print_message(msg)
+            end)
           end)
-        end)
 
-      results = Enum.map(tasks, &Task.await/1)
-      assert Enum.all?(results, &(&1 == :ok))
+        results = Enum.map(tasks, &Task.await/1)
+        assert Enum.all?(results, &(&1 == :ok))
+      end)
     end
 
     test "handles various message types" do
-      assert :ok = Printer.print_message("")
-      assert :ok = Printer.print_message("Simple message")
-      assert :ok = Printer.print_message("Message with\nmultiple lines")
-      assert :ok = Printer.print_message("Message with special chars: ✓ ✗ ○")
+      capture_io(fn ->
+        assert :ok = Printer.print_message("")
+        assert :ok = Printer.print_message("Simple message")
+        assert :ok = Printer.print_message("Message with\nmultiple lines")
+        assert :ok = Printer.print_message("Message with special chars: ✓ ✗ ○")
+      end)
     end
   end
 
@@ -206,39 +225,48 @@ defmodule Quality.PrinterTest do
 
   describe "concurrency and atomicity" do
     test "serializes output from concurrent calls" do
-      # Mix multiple result types concurrently
-      results = [
-        %{name: "Stage 1", status: :ok, summary: "OK", duration_ms: 100, output: "", stats: %{}},
-        %{
-          name: "Stage 2",
-          status: :error,
-          summary: "Failed",
-          duration_ms: 200,
-          output: "",
-          stats: %{}
-        },
-        %{
-          name: "Stage 3",
-          status: :skipped,
-          summary: "Skipped",
-          duration_ms: 0,
-          output: "",
-          stats: %{}
-        }
-      ]
+      capture_io(fn ->
+        # Mix multiple result types concurrently
+        results = [
+          %{
+            name: "Stage 1",
+            status: :ok,
+            summary: "OK",
+            duration_ms: 100,
+            output: "",
+            stats: %{}
+          },
+          %{
+            name: "Stage 2",
+            status: :error,
+            summary: "Failed",
+            duration_ms: 200,
+            output: "",
+            stats: %{}
+          },
+          %{
+            name: "Stage 3",
+            status: :skipped,
+            summary: "Skipped",
+            duration_ms: 0,
+            output: "",
+            stats: %{}
+          }
+        ]
 
-      # Run concurrently with both print_result and print_message
-      tasks =
-        Enum.flat_map(results, fn result ->
-          [
-            Task.async(fn -> Printer.print_result(result) end),
-            Task.async(fn -> Printer.print_message("Message for #{result.name}") end)
-          ]
-        end)
+        # Run concurrently with both print_result and print_message
+        tasks =
+          Enum.flat_map(results, fn result ->
+            [
+              Task.async(fn -> Printer.print_result(result) end),
+              Task.async(fn -> Printer.print_message("Message for #{result.name}") end)
+            ]
+          end)
 
-      # All should complete successfully
-      task_results = Enum.map(tasks, &Task.await/1)
-      assert Enum.all?(task_results, &(&1 == :ok))
+        # All should complete successfully
+        task_results = Enum.map(tasks, &Task.await/1)
+        assert Enum.all?(task_results, &(&1 == :ok))
+      end)
     end
   end
 end

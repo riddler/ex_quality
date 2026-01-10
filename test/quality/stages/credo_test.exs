@@ -1,128 +1,246 @@
 defmodule Quality.Stages.CredoTest do
-  use ExUnit.Case, async: false
-
-  @moduletag :integration
+  use ExUnit.Case, async: true
+  use Mimic
 
   alias Quality.Stages.Credo
 
-  describe "run/1" do
-    test "returns result map with required fields" do
+  describe "run/1 - no issues found" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        output = """
+        Checking 24 source files ...
+
+        Please report incorrect results: https://github.com/rrrene/credo/issues
+
+        Analysis took 0.5 seconds (0.1s to load, 0.4s running 52 checks on 24 files)
+        51 mods/funs, found no issues.
+        """
+
+        {output, 0}
+      end)
+
+      :ok
+    end
+
+    test "returns success with zero issues" do
       result = Credo.run([])
 
-      assert is_map(result)
       assert result.name == "Credo"
-      assert result.status in [:ok, :error]
-      assert is_binary(result.output)
-      assert is_map(result.stats)
-      assert is_binary(result.summary)
+      assert result.status == :ok
+      assert result.stats.issue_count == 0
+      assert result.summary == "No issues"
       assert is_integer(result.duration_ms)
       assert result.duration_ms >= 0
     end
+  end
 
-    test "includes issue_count in stats" do
-      result = Credo.run([])
+  describe "run/1 - issues found" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        output = """
+        Checking 24 source files ...
 
-      assert Map.has_key?(result.stats, :issue_count)
-      assert is_integer(result.stats.issue_count)
-      assert result.stats.issue_count >= 0
+        ┃
+        ┃ [W] ↗ Modules should have a @moduledoc tag.
+        ┃       lib/my_app/user.ex:15:11 #(MyApp.User)
+        ┃
+        ┃ [R] ↗ Function body is nested too deep (max depth is 2, was 3).
+        ┃       lib/my_app/api.ex:42:3 (MyApp.API.process/1)
+        ┃
+        ┃ [C] ↗ There should be no calls to IO.inspect/2.
+        ┃       lib/my_app/debug.ex:10:5 (MyApp.Debug.check/1)
+
+        Please report incorrect results: https://github.com/rrrene/credo/issues
+
+        Analysis took 0.5 seconds
+        51 mods/funs, found 1 warning, 1 refactoring opportunity, 1 consistency issue.
+        """
+
+        {output, 1}
+      end)
+
+      :ok
     end
 
+    test "returns error with issue count" do
+      result = Credo.run([])
+
+      assert result.name == "Credo"
+      assert result.status == :error
+      assert result.stats.issue_count == 3
+      assert result.summary =~ "3 issue"
+      assert result.summary =~ "warning"
+      assert result.summary =~ "refactoring"
+      assert result.summary =~ "consistency"
+    end
+
+    test "includes full output with file references" do
+      result = Credo.run([])
+
+      assert result.output =~ "lib/my_app/user.ex:15:11"
+      assert result.output =~ "lib/my_app/api.ex:42:3"
+      assert result.output =~ "lib/my_app/debug.ex:10:5"
+    end
+  end
+
+  describe "run/1 - multiple issue types" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        output = """
+        Analysis took 0.5 seconds
+        51 mods/funs, found 2 warnings, 3 code readability issues, 2 software design suggestions.
+        """
+
+        {output, 1}
+      end)
+
+      :ok
+    end
+
+    test "parses and sums all issue types" do
+      result = Credo.run([])
+
+      assert result.status == :error
+      assert result.stats.issue_count == 7
+      assert result.summary =~ "7 issue"
+      assert result.summary =~ "2 warning"
+      assert result.summary =~ "3 readability"
+      assert result.summary =~ "2 design"
+    end
+  end
+
+  describe "run/1 - configuration options" do
     test "uses strict mode by default" do
-      # We can't easily verify the command args, but we can verify the function runs
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        {"No issues", 0}
+      end)
+
       result = Credo.run([])
 
-      assert is_map(result)
+      assert result.status == :ok
     end
 
-    test "respects strict config option" do
-      result_strict = Credo.run(credo: [strict: true])
-      result_non_strict = Credo.run(credo: [strict: false])
+    test "respects strict: false config" do
+      System
+      |> expect(:cmd, fn "mix", ["credo"], _opts ->
+        {"No issues", 0}
+      end)
 
-      assert is_map(result_strict)
-      assert is_map(result_non_strict)
+      result = Credo.run(credo: [strict: false])
+
+      assert result.status == :ok
     end
 
-    test "respects all config option" do
-      result_all = Credo.run(credo: [all: true])
-      result_changed = Credo.run(credo: [all: false])
+    test "respects all: true config" do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict", "--all"], _opts ->
+        {"No issues", 0}
+      end)
 
-      assert is_map(result_all)
-      assert is_map(result_changed)
+      result = Credo.run(credo: [strict: true, all: true])
+
+      assert result.status == :ok
     end
 
-    test "returns success when no issues found" do
+    test "handles non-strict with all" do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--all"], _opts ->
+        {"No issues", 0}
+      end)
+
+      result = Credo.run(credo: [strict: false, all: true])
+
+      assert result.status == :ok
+    end
+  end
+
+  describe "run/1 - fallback issue counting" do
+    setup do
+      # Output without summary line - fallback to counting issue markers
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        output = """
+        ┃ [W] ↗ Issue 1
+        ┃ [R] ↗ Issue 2
+        ┃ [C] ↗ Issue 3
+        ┃ [F] ↗ Issue 4
+        ┃ [D] ↗ Issue 5
+        """
+
+        {output, 1}
+      end)
+
+      :ok
+    end
+
+    test "counts issue markers when summary not found" do
       result = Credo.run([])
 
-      # If status is :ok, should have zero issues
-      if result.status == :ok do
-        assert result.stats.issue_count == 0
-        assert result.summary == "No issues"
-      end
+      assert result.status == :error
+      assert result.stats.issue_count == 5
+    end
+  end
+
+  describe "run/1 - single issue" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        output = """
+        51 mods/funs, found 1 refactoring opportunity.
+        """
+
+        {output, 1}
+      end)
+
+      :ok
     end
 
-    test "returns error when issues found" do
+    test "formats singular issue correctly" do
       result = Credo.run([])
 
-      # If status is :error, should have non-zero issue count
-      if result.status == :error do
-        assert result.stats.issue_count > 0
-        assert result.summary =~ ~r/issue/
-      end
+      assert result.status == :error
+      assert result.stats.issue_count == 1
+      assert result.summary == "1 issue(s) (1 refactoring)"
     end
+  end
 
-    test "summary reflects issue count" do
-      result = Credo.run([])
+  describe "run/1 - timing" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        Process.sleep(10)
+        {"No issues", 0}
+      end)
 
-      if result.status == :error do
-        count = result.stats.issue_count
-
-        cond do
-          count == 1 ->
-            assert result.summary =~ "1 issue"
-
-          count > 1 ->
-            assert result.summary =~ "#{count} issue"
-
-          true ->
-            :ok
-        end
-      end
+      :ok
     end
 
     test "records execution duration" do
       result = Credo.run([])
 
-      assert result.duration_ms > 0
-      assert result.duration_ms < 30_000
+      assert result.duration_ms >= 10
+      assert result.duration_ms < 5_000
     end
   end
 
-  describe "configuration" do
+  describe "run/1 - empty config" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["credo", "--strict"], _opts ->
+        {"No issues", 0}
+      end)
+
+      :ok
+    end
+
     test "handles empty config" do
       result = Credo.run([])
 
-      assert is_map(result)
-    end
-
-    test "handles config with both strict and all options" do
-      config = [credo: [strict: true, all: true]]
-      result = Credo.run(config)
-
-      assert is_map(result)
-    end
-
-    test "defaults strict to true" do
-      result = Credo.run([])
-
-      # The stage runs successfully with defaults
-      assert is_map(result)
-    end
-
-    test "defaults all to false" do
-      result = Credo.run([])
-
-      # The stage runs successfully with defaults
-      assert is_map(result)
+      assert result.status == :ok
     end
   end
 end
