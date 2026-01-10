@@ -7,10 +7,8 @@ defmodule Mix.Tasks.Quality.InitTest do
 
   @moduletag :integration
 
-  @tag :tmp_dir
-  test "initialization flow with --skip-prompts", %{tmp_dir: dir} do
-    File.cd!(dir, fn ->
-      # Create minimal mix.exs
+  test "initialization flow with --skip-prompts" do
+    in_tmp_project(fn ->
       create_mock_mix_exs()
 
       # Run init with --skip-prompts (installs recommended tools)
@@ -52,9 +50,8 @@ defmodule Mix.Tasks.Quality.InitTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "handles --no-config option", %{tmp_dir: dir} do
-    File.cd!(dir, fn ->
+  test "handles --no-config option" do
+    in_tmp_project(fn ->
       create_mock_mix_exs()
 
       output =
@@ -75,9 +72,8 @@ defmodule Mix.Tasks.Quality.InitTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "detects existing tools and skips them", %{tmp_dir: dir} do
-    File.cd!(dir, fn ->
+  test "detects existing tools and skips them" do
+    in_tmp_project(fn ->
       # Create mix.exs with credo already installed
       content = ~S"""
       defmodule TestProject.MixProject do
@@ -116,9 +112,8 @@ defmodule Mix.Tasks.Quality.InitTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "creates .quality.exs if it doesn't exist", %{tmp_dir: dir} do
-    File.cd!(dir, fn ->
+  test "creates .quality.exs if it doesn't exist" do
+    in_tmp_project(fn ->
       create_mock_mix_exs()
 
       capture_io(fn ->
@@ -129,9 +124,8 @@ defmodule Mix.Tasks.Quality.InitTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "doesn't overwrite existing .quality.exs", %{tmp_dir: dir} do
-    File.cd!(dir, fn ->
+  test "doesn't overwrite existing .quality.exs" do
+    in_tmp_project(fn ->
       create_mock_mix_exs()
 
       # Create existing .quality.exs
@@ -148,6 +142,24 @@ defmodule Mix.Tasks.Quality.InitTest do
       # Should not overwrite
       assert File.read!(".quality.exs") == existing_content
     end)
+  end
+
+  # Helper to run code in an isolated tmp directory outside the project
+  defp in_tmp_project(fun) do
+    # Create a unique tmp directory in the system temp folder
+    tmp_dir =
+      Path.join([
+        System.tmp_dir!(),
+        "ex_quality_test_#{:rand.uniform(100_000_000)}"
+      ])
+
+    File.mkdir_p!(tmp_dir)
+
+    try do
+      File.cd!(tmp_dir, fun)
+    after
+      File.rm_rf!(tmp_dir)
+    end
   end
 
   # Helper to create a minimal mock mix.exs

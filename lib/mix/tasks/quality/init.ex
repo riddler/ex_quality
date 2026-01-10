@@ -85,6 +85,9 @@ defmodule Mix.Tasks.Quality.Init do
 
       case DepInstaller.add_dependencies(versions) do
         :ok ->
+          # Step 4b: Configure project settings (like test_coverage)
+          configure_project_settings(tools_to_install)
+
           # Step 5: Install dependencies
           Mix.shell().info("\nRunning mix deps.get...")
           run_deps_get()
@@ -134,6 +137,106 @@ defmodule Mix.Tasks.Quality.Init do
 
   defp format_tool_list(tools) do
     Enum.map_join(tools, ", ", &to_string/1)
+  end
+
+  defp configure_project_settings(tools) do
+    if :coverage in tools do
+      add_test_coverage_config()
+    end
+  end
+
+  defp add_test_coverage_config do
+    mix_exs_path = "mix.exs"
+    content = File.read!(mix_exs_path)
+
+    # Check if test_coverage is already configured
+    if String.contains?(content, "test_coverage:") or
+         String.contains?(content, "coveralls:") do
+      Mix.shell().info("  ○ Coverage configuration already present in mix.exs")
+      :ok
+    else
+      # Find the project function and add test_coverage configuration
+      case add_test_coverage_to_project(content) do
+        {:ok, modified_content} ->
+          File.write!(mix_exs_path, modified_content)
+          Mix.shell().info("  ✓ Added test_coverage configuration to mix.exs")
+          :ok
+
+        {:error, reason} ->
+          Mix.shell().error("  Warning: Could not add test_coverage config: #{reason}")
+          Mix.shell().info("  Please add manually: test_coverage: [tool: ExCoveralls]")
+          :ok
+      end
+    end
+  end
+
+  defp add_test_coverage_to_project(content) do
+    lines = String.split(content, "\n")
+
+    # Find the project function's opening bracket
+    case find_project_bracket(lines) do
+      {:ok, bracket_line} ->
+        # Insert test_coverage and preferred_cli_env config after the opening bracket
+        indent = extract_indent_from_project(lines, bracket_line)
+
+        coverage_config = """
+        #{indent}test_coverage: [tool: ExCoveralls],
+        #{indent}preferred_cli_env: [
+        #{indent}  coveralls: :test,
+        #{indent}  "coveralls.detail": :test,
+        #{indent}  "coveralls.post": :test,
+        #{indent}  "coveralls.html": :test
+        #{indent}],\
+        """
+
+        new_lines =
+          List.update_at(lines, bracket_line, fn line ->
+            line <> "\n" <> coverage_config
+          end)
+
+        {:ok, Enum.join(new_lines, "\n")}
+
+      :not_found ->
+        {:error, "Could not find project function"}
+    end
+  end
+
+  defp find_project_bracket(lines) do
+    # Find "def project do" line
+    project_line =
+      Enum.find_index(lines, fn line ->
+        String.match?(line, ~r/def\s+project\s+do/)
+      end)
+
+    case project_line do
+      nil ->
+        :not_found
+
+      idx ->
+        # Find the opening bracket [ after "def project do"
+        bracket_line =
+          lines
+          |> Enum.drop(idx + 1)
+          |> Enum.with_index(idx + 1)
+          |> Enum.find(fn {line, _idx} ->
+            String.match?(line, ~r/^\s+\[/)
+          end)
+
+        case bracket_line do
+          {_line, line_idx} -> {:ok, line_idx}
+          nil -> :not_found
+        end
+    end
+  end
+
+  defp extract_indent_from_project(lines, bracket_line) do
+    # Look at the next line after [ to get the indentation level
+    next_line = Enum.at(lines, bracket_line + 1, "")
+
+    case Regex.run(~r/^(\s*)/, next_line) do
+      [_, spaces] -> spaces
+      _ -> "      "
+    end
   end
 
   defp run_deps_get do
