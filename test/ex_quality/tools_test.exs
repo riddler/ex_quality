@@ -28,18 +28,18 @@ defmodule ExQuality.ToolsTest do
     end
 
     test "detects tools based on actual project dependencies" do
-      # The Quality project has credo, dialyxir, and excoveralls in mix.exs
+      # The ExQuality project has credo, dialyxir, excoveralls, doctor, and mix_audit in mix.exs
       result = Tools.detect()
 
-      # These tools ARE in the Quality project dependencies
+      # These tools ARE in the ExQuality project dependencies
       assert result.credo == true
       assert result.dialyzer == true
       assert result.coverage == true
+      assert result.doctor == true
+      assert result.audit == true
 
-      # These tools are NOT in the Quality project dependencies
-      assert result.doctor == false
+      # This tool is NOT in the ExQuality project dependencies
       assert result.gettext == false
-      assert result.audit == false
     end
   end
 
@@ -48,9 +48,10 @@ defmodule ExQuality.ToolsTest do
       # These ARE in dependencies
       assert Tools.available?(:credo) == true
       assert Tools.available?(:dialyzer) == true
+      assert Tools.available?(:doctor) == true
 
       # These are NOT in dependencies
-      assert Tools.available?(:doctor) == false
+      assert Tools.available?(:gettext) == false
     end
 
     test "returns false for unknown tools" do

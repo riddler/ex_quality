@@ -39,6 +39,12 @@ defmodule Mix.Tasks.Quality.Init do
 
   use Mix.Task
 
+  alias ExQuality.Init.DepInstaller
+  alias ExQuality.Init.Prompter
+  alias ExQuality.Init.ToolSetup
+  alias ExQuality.Init.VersionResolver
+  alias ExQuality.Tools
+
   @switches [
     skip_prompts: :boolean,
     no_config: :boolean,
@@ -47,6 +53,11 @@ defmodule Mix.Tasks.Quality.Init do
 
   @recommended_tools [:credo, :dialyzer, :coverage]
 
+  @doc """
+  Runs the quality.init task to set up ExQuality in your project.
+
+  Accepts command-line arguments to customize behavior.
+  """
   @spec run([String.t()]) :: :ok
   def run(args) do
     {opts, _remaining} = OptionParser.parse!(args, switches: @switches)
@@ -54,7 +65,7 @@ defmodule Mix.Tasks.Quality.Init do
     Mix.shell().info("Initializing ExQuality for your project...\n")
 
     # Step 1: Detect existing tools
-    existing = ExQuality.Tools.detect()
+    existing = Tools.detect()
     display_existing_tools(existing)
 
     # Step 2: Determine which tools to install
@@ -67,12 +78,12 @@ defmodule Mix.Tasks.Quality.Init do
     else
       # Step 3: Fetch latest versions
       Mix.shell().info("\nFetching latest versions from hex.pm...")
-      versions = ExQuality.Init.VersionResolver.fetch_versions(tools_to_install)
+      versions = VersionResolver.fetch_versions(tools_to_install)
 
       # Step 4: Add dependencies to mix.exs
       Mix.shell().info("Adding dependencies to mix.exs...")
 
-      case ExQuality.Init.DepInstaller.add_dependencies(versions) do
+      case DepInstaller.add_dependencies(versions) do
         :ok ->
           # Step 5: Install dependencies
           Mix.shell().info("\nRunning mix deps.get...")
@@ -80,7 +91,7 @@ defmodule Mix.Tasks.Quality.Init do
 
           # Step 6: Run tool-specific setup
           Mix.shell().info("\nSetting up tools...")
-          ExQuality.Init.ToolSetup.setup_all(tools_to_install)
+          ToolSetup.setup_all(tools_to_install)
 
           # Step 7: Create config file
           maybe_create_config(opts)
@@ -105,7 +116,7 @@ defmodule Mix.Tasks.Quality.Init do
 
       true ->
         # Interactive prompt
-        ExQuality.Init.Prompter.prompt_for_tools(existing, @recommended_tools)
+        Prompter.prompt_for_tools(existing, @recommended_tools)
     end
   end
 
@@ -122,7 +133,7 @@ defmodule Mix.Tasks.Quality.Init do
   end
 
   defp format_tool_list(tools) do
-    tools |> Enum.map(&to_string/1) |> Enum.join(", ")
+    Enum.map_join(tools, ", ", &to_string/1)
   end
 
   defp run_deps_get do

@@ -222,7 +222,7 @@ Credo - FAILED
 ┃       lib/mix/tasks/quality.ex:96:22 #(Mix.Tasks.Quality.run)
 ┃
 ┃ [R] ↗ Predicate function names should not start with 'is'...
-┃       lib/quality/stages/dialyzer.ex:92:8 #(Quality.Stages.Dialyzer.is_debug_info_error?)
+┃       lib/ex_quality/stages/dialyzer.ex:92:8 #(ExQuality.Stages.Dialyzer.is_debug_info_error?)
 ```
 
 **Why this matters:**
@@ -237,9 +237,6 @@ For the best experience, add these to your `mix.exs`:
 ```elixir
 def deps do
   [
-    # Quality checker
-    {:ex_quality, "~> 0.1.0", only: :dev, runtime: false},
-
     # Recommended quality tools
     {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
     {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
@@ -248,7 +245,10 @@ def deps do
     {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
 
     # If you use translations
-    {:gettext, "~> 0.24"}
+    {:gettext, "~> 0.24"},
+
+    # Quality checker
+    {:ex_quality, "~> 0.1.0", only: :dev, runtime: false}
   ]
 end
 ```

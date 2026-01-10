@@ -80,8 +80,7 @@ defmodule ExQuality.Init.Prompter do
     |> String.split(",")
     |> Enum.map(&String.trim/1)
     |> Enum.map(&parse_tool_name/1)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(fn tool -> existing[tool] end)
+    |> Enum.reject(fn tool -> is_nil(tool) or existing[tool] end)
     |> Enum.filter(&valid_tool?/1)
     |> case do
       [] ->
@@ -94,13 +93,11 @@ defmodule ExQuality.Init.Prompter do
   end
 
   defp parse_tool_name(name) do
-    try do
-      String.to_existing_atom(name)
-    rescue
-      ArgumentError ->
-        Mix.shell().error("Unknown tool: #{name}")
-        nil
-    end
+    String.to_existing_atom(name)
+  rescue
+    ArgumentError ->
+      Mix.shell().error("Unknown tool: #{name}")
+      nil
   end
 
   defp valid_tool?(tool) do
@@ -108,6 +105,6 @@ defmodule ExQuality.Init.Prompter do
   end
 
   defp format_list(tools) do
-    tools |> Enum.map(&to_string/1) |> Enum.join(", ")
+    Enum.map_join(tools, ", ", &to_string/1)
   end
 end

@@ -6,15 +6,15 @@ defmodule ExQuality.Init.DepInstallerTest do
   describe "find_insertion_point/1" do
     test "finds :ex_quality line" do
       content = ~S"""
-defmodule TestProject.MixProject do
-  defp deps do
-    [
-      {:ex_quality, "~> 0.1", only: :dev},
-      {:jason, "~> 1.4"}
-    ]
-  end
-end
-"""
+      defmodule TestProject.MixProject do
+        defp deps do
+          [
+            {:ex_quality, "~> 0.1", only: :dev},
+            {:jason, "~> 1.4"}
+          ]
+        end
+      end
+      """
 
       # Should insert BEFORE ex_quality (line 3, before line 4)
       assert {:ok, 3, indent} = DepInstaller.find_insertion_point(content)
@@ -24,14 +24,14 @@ end
 
     test "falls back to end of deps list if :ex_quality not found" do
       content = ~S"""
-defmodule TestProject.MixProject do
-  defp deps do
-    [
-      {:jason, "~> 1.4"}
-    ]
-  end
-end
-"""
+      defmodule TestProject.MixProject do
+        defp deps do
+          [
+            {:jason, "~> 1.4"}
+          ]
+        end
+      end
+      """
 
       # Should insert before the closing ]
       assert {:ok, line_num, indent} = DepInstaller.find_insertion_point(content)
@@ -42,12 +42,12 @@ end
 
     test "extracts correct indentation from existing deps" do
       content = ~S"""
-defp deps do
-  [
-    {:ex_quality, "~> 0.1"}
-  ]
-end
-"""
+      defp deps do
+        [
+          {:ex_quality, "~> 0.1"}
+        ]
+      end
+      """
 
       assert {:ok, line, indent} = DepInstaller.find_insertion_point(content)
       # Should insert before ex_quality (line 2, before line 3)
@@ -233,20 +233,20 @@ end
       File.cd!(dir, fn ->
         # Create minimal mix.exs
         original_content = ~S"""
-defmodule TestProject.MixProject do
-  use Mix.Project
+        defmodule TestProject.MixProject do
+          use Mix.Project
 
-  def project do
-    [app: :test_project]
-  end
+          def project do
+            [app: :test_project]
+          end
 
-  defp deps do
-    [
-      {:ex_quality, "~> 0.1", only: :dev, runtime: false}
-    ]
-  end
-end
-"""
+          defp deps do
+            [
+              {:ex_quality, "~> 0.1", only: :dev, runtime: false}
+            ]
+          end
+        end
+        """
 
         File.write!("mix.exs", original_content)
 
