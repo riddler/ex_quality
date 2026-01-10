@@ -7,40 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- **BREAKING**: Package renamed from `quality` to `ex_quality`
-- **BREAKING**: Module namespace changed from `Quality` to `ExQuality`
-- Mix task name remains `mix quality` (unchanged)
-- GitHub repository URL updated to `https://github.com/riddler/ex_quality`
-
-### Migration Guide
-
-If you were using an earlier version:
-
-1. Update your `mix.exs` dependency:
-   ```elixir
-   # Old
-   {:quality, "~> 0.1.0", only: :dev, runtime: false}
-
-   # New
-   {:ex_quality, "~> 0.1.0", only: :dev, runtime: false}
-   ```
-
-2. Update any direct module references (if any):
-   ```elixir
-   # Old
-   Quality.Config.load()
-
-   # New
-   ExQuality.Config.load()
-   ```
-
-3. Mix task usage remains the same:
-   ```bash
-   mix quality          # Still works!
-   mix quality --quick  # Still works!
-   ```
+- **`mix quality.init`** now automatically configures ExCoveralls in `mix.exs` when coverage is selected:
+  - Adds `test_coverage: [tool: ExCoveralls]` to project configuration
+  - Adds `preferred_cli_env` settings for all coveralls commands
+  - Smart detection prevents duplicate configuration
+  - Properly indents to match existing project style
 
 ## [0.1.0] - 2026-01-09
 
