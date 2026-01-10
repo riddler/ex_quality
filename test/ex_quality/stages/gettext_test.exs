@@ -1,8 +1,8 @@
-defmodule Quality.Stages.GettextTest do
+defmodule ExQuality.Stages.GettextTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Gettext
+  alias ExQuality.Stages.Gettext
 
   describe "run/1 - no translation issues" do
     setup do

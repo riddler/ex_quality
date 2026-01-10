@@ -1,4 +1,4 @@
-defmodule Quality.Tools do
+defmodule ExQuality.Tools do
   @moduledoc """
   Detects which quality tools are available in the project.
 
@@ -7,7 +7,7 @@ defmodule Quality.Tools do
 
   ## Example
 
-      Quality.Tools.detect()
+      ExQuality.Tools.detect()
       #=> %{
         credo: true,
         dialyzer: true,
@@ -17,7 +17,7 @@ defmodule Quality.Tools do
         audit: true
       }
 
-      Quality.Tools.available?(:credo)
+      ExQuality.Tools.available?(:credo)
       #=> true
   """
 

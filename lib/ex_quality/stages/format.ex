@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Format do
+defmodule ExQuality.Stages.Format do
   @moduledoc """
   Auto-fixes code formatting by running `mix format`.
 
@@ -14,7 +14,7 @@ defmodule Quality.Stages.Format do
   First checks which files need formatting, then formats them.
   Returns a result with the list of formatted files.
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(_config) do
     start_time = System.monotonic_time(:millisecond)
 

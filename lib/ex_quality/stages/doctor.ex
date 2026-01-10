@@ -1,4 +1,4 @@
-defmodule Quality.Stages.Doctor do
+defmodule ExQuality.Stages.Doctor do
   @moduledoc """
   Checks documentation coverage using the doctor package.
 
@@ -15,7 +15,7 @@ defmodule Quality.Stages.Doctor do
 
   - `summary_only` - Only show summary, not detailed report (default: false)
   """
-  @spec run(keyword()) :: Quality.Stage.result()
+  @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 

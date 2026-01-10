@@ -1,13 +1,13 @@
-defmodule Quality.Stages.TestTest do
+defmodule ExQuality.Stages.TestTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Test
+  alias ExQuality.Stages.Test
 
   describe "run/1 - successful tests without coverage" do
     setup do
-      # Mock Quality.Tools to indicate coverage not available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage not available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       # Mock successful test run
@@ -44,8 +44,8 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - successful tests with coverage" do
     setup do
-      # Mock Quality.Tools to indicate coverage available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> true end)
 
       # Mock successful coveralls run
@@ -87,8 +87,8 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - failed tests" do
     setup do
-      # Mock Quality.Tools to indicate coverage not available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage not available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       # Mock failed test run
@@ -136,8 +136,8 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - coverage below threshold" do
     setup do
-      # Mock Quality.Tools to indicate coverage available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> true end)
 
       # Mock coveralls run with low coverage
@@ -178,8 +178,8 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - quick mode" do
     setup do
-      # Mock Quality.Tools to indicate coverage available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> true end)
 
       # In quick mode, should run mix test instead of coveralls
@@ -208,8 +208,8 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - tests with excluded tests" do
     setup do
-      # Mock Quality.Tools to indicate coverage not available
-      Quality.Tools
+      # Mock ExQuality.Tools to indicate coverage not available
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       # Mock test run with excluded tests
@@ -241,7 +241,7 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - parsing edge cases" do
     setup do
-      Quality.Tools
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       :ok
@@ -265,7 +265,7 @@ defmodule Quality.Stages.TestTest do
     end
 
     test "handles malformed coverage output" do
-      Quality.Tools
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> true end)
 
       System
@@ -291,7 +291,7 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - timing" do
     setup do
-      Quality.Tools
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       System
@@ -320,7 +320,7 @@ defmodule Quality.Stages.TestTest do
 
   describe "run/1 - format test counts" do
     setup do
-      Quality.Tools
+      ExQuality.Tools
       |> stub(:available?, fn :coverage -> false end)
 
       :ok

@@ -1,8 +1,8 @@
-defmodule Quality.Stages.DialyzerTest do
+defmodule ExQuality.Stages.DialyzerTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Dialyzer
+  alias ExQuality.Stages.Dialyzer
 
   describe "run/1 - no warnings" do
     setup do

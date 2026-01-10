@@ -1,8 +1,8 @@
-defmodule Quality.Stages.CredoTest do
+defmodule ExQuality.Stages.CredoTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Credo
+  alias ExQuality.Stages.Credo
 
   describe "run/1 - no issues found" do
     setup do

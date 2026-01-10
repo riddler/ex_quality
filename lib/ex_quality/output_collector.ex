@@ -1,4 +1,4 @@
-defmodule Quality.OutputCollector do
+defmodule ExQuality.OutputCollector do
   @moduledoc """
   Collects command output without streaming to console.
 
@@ -7,9 +7,9 @@ defmodule Quality.OutputCollector do
 
   ## Example
 
-      collector = Quality.OutputCollector.new()
+      collector = ExQuality.OutputCollector.new()
       {_output, _exit_code} = System.cmd("mix", ["compile"], into: collector)
-      output = Quality.OutputCollector.get_output(collector)
+      output = ExQuality.OutputCollector.get_output(collector)
   """
 
   defstruct [:pid]
@@ -39,7 +39,7 @@ defmodule Quality.OutputCollector do
   end
 
   defimpl Collectable do
-    def into(%Quality.OutputCollector{pid: pid}) do
+    def into(%ExQuality.OutputCollector{pid: pid}) do
       collector_fun = fn
         _acc, {:cont, chunk} ->
           Agent.update(pid, fn chunks -> [chunk | chunks] end)

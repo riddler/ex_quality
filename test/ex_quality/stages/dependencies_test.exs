@@ -1,8 +1,8 @@
-defmodule Quality.Stages.DependenciesTest do
+defmodule ExQuality.Stages.DependenciesTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Dependencies
+  alias ExQuality.Stages.Dependencies
 
   describe "run/1 - no issues (audit not available)" do
     setup do

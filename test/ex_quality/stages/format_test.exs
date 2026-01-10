@@ -1,8 +1,8 @@
-defmodule Quality.Stages.FormatTest do
+defmodule ExQuality.Stages.FormatTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Quality.Stages.Format
+  alias ExQuality.Stages.Format
 
   describe "run/1 - no files need formatting" do
     setup do
