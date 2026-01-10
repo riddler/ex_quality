@@ -137,13 +137,11 @@ defmodule ExQuality.Stages.Credo do
     ]
 
     Enum.flat_map(patterns, fn {regex, name} ->
-      case Regex.run(regex, output) do
-        [_, count] ->
-          count_int = String.to_integer(count)
-          if count_int > 0, do: ["#{count_int} #{name}"], else: []
-
-        _ ->
-          []
+      with [_, count] <- Regex.run(regex, output),
+           count_int when count_int > 0 <- String.to_integer(count) do
+        ["#{count_int} #{name}"]
+      else
+        _ -> []
       end
     end)
   end

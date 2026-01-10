@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Quality.InitTest do
 
   import ExUnit.CaptureIO
 
+  alias Mix.Tasks.Quality.Init
+
   @moduletag :integration
 
   @tag :tmp_dir
@@ -14,7 +16,7 @@ defmodule Mix.Tasks.Quality.InitTest do
       # Run init with --skip-prompts (installs recommended tools)
       output =
         capture_io(fn ->
-          Mix.Tasks.Quality.Init.run(["--skip-prompts"])
+          Init.run(["--skip-prompts"])
         end)
 
       # Verify output messages
@@ -57,7 +59,7 @@ defmodule Mix.Tasks.Quality.InitTest do
 
       output =
         capture_io(fn ->
-          Mix.Tasks.Quality.Init.run(["--skip-prompts", "--no-config"])
+          Init.run(["--skip-prompts", "--no-config"])
         end)
 
       # Should not create .quality.exs
@@ -78,27 +80,27 @@ defmodule Mix.Tasks.Quality.InitTest do
     File.cd!(dir, fn ->
       # Create mix.exs with credo already installed
       content = ~S"""
-defmodule TestProject.MixProject do
-  use Mix.Project
+      defmodule TestProject.MixProject do
+        use Mix.Project
 
-  def project do
-    [app: :test_project, version: "0.1.0"]
-  end
+        def project do
+          [app: :test_project, version: "0.1.0"]
+        end
 
-  defp deps do
-    [
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_quality, "~> 0.1", only: :dev, runtime: false}
-    ]
-  end
-end
-"""
+        defp deps do
+          [
+            {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+            {:ex_quality, "~> 0.1", only: :dev, runtime: false}
+          ]
+        end
+      end
+      """
 
       File.write!("mix.exs", content)
 
       output =
         capture_io(fn ->
-          Mix.Tasks.Quality.Init.run(["--skip-prompts"])
+          Init.run(["--skip-prompts"])
         end)
 
       # Verify task ran
@@ -120,7 +122,7 @@ end
       create_mock_mix_exs()
 
       capture_io(fn ->
-        Mix.Tasks.Quality.Init.run(["--skip-prompts"])
+        Init.run(["--skip-prompts"])
       end)
 
       assert File.exists?(".quality.exs")
@@ -138,7 +140,7 @@ end
 
       output =
         capture_io(fn ->
-          Mix.Tasks.Quality.Init.run(["--skip-prompts"])
+          Init.run(["--skip-prompts"])
         end)
 
       assert output =~ ".quality.exs already exists"

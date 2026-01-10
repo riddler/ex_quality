@@ -103,9 +103,9 @@ defmodule ExQuality.Stages.Gettext do
         output
         |> String.trim()
         |> String.split("\n")
-        |> Enum.reject(&(&1 == ""))
-        |> Enum.reject(&String.contains?(&1, "/en/"))
-        |> Enum.reject(&String.contains?(&1, "errors.po"))
+        |> Enum.reject(
+          &(&1 == "" or String.contains?(&1, "/en/") or String.contains?(&1, "errors.po"))
+        )
 
       _ ->
         []
@@ -145,19 +145,20 @@ defmodule ExQuality.Stages.Gettext do
     lines
     |> Enum.with_index()
     |> Enum.reduce([], fn {line, index}, acc ->
-      if String.match?(line, ~r/^msgstr ""$/) do
-        case find_msgid_before_line_with_number(lines, index) do
-          {msgid, line_num} when msgid != "" ->
-            [{line_num + 1, msgid} | acc]
-
-          _ ->
-            acc
-        end
-      else
-        acc
-      end
+      add_untranslated_if_empty(line, lines, index, acc)
     end)
     |> Enum.reverse()
+  end
+
+  defp add_untranslated_if_empty(line, lines, index, acc) do
+    if String.match?(line, ~r/^msgstr ""$/) do
+      case find_msgid_before_line_with_number(lines, index) do
+        {msgid, line_num} when msgid != "" -> [{line_num + 1, msgid} | acc]
+        _ -> acc
+      end
+    else
+      acc
+    end
   end
 
   defp find_msgid_before_line_with_number(lines, msgstr_index) do
@@ -197,19 +198,20 @@ defmodule ExQuality.Stages.Gettext do
     lines
     |> Enum.with_index()
     |> Enum.reduce([], fn {line, index}, acc ->
-      if String.match?(line, ~r/^#,.*\bfuzzy\b/) do
-        case find_msgid_after_line_with_number(lines, index) do
-          {msgid, line_num} when msgid != "" ->
-            [{line_num + 1, msgid} | acc]
-
-          _ ->
-            acc
-        end
-      else
-        acc
-      end
+      add_fuzzy_if_marked(line, lines, index, acc)
     end)
     |> Enum.reverse()
+  end
+
+  defp add_fuzzy_if_marked(line, lines, index, acc) do
+    if String.match?(line, ~r/^#,.*\bfuzzy\b/) do
+      case find_msgid_after_line_with_number(lines, index) do
+        {msgid, line_num} when msgid != "" -> [{line_num + 1, msgid} | acc]
+        _ -> acc
+      end
+    else
+      acc
+    end
   end
 
   defp find_msgid_after_line_with_number(lines, fuzzy_index) do
@@ -239,31 +241,30 @@ defmodule ExQuality.Stages.Gettext do
     header = "#{String.capitalize(type)} translations:\n"
 
     file_details =
-      Enum.map(file_items, fn {file, items} ->
+      Enum.map_join(file_items, "\n\n", fn {file, items} ->
         display_file = String.replace_leading(file, "./", "")
 
         item_details =
           items
           |> Enum.take(5)
-          |> Enum.map(fn {line, msgid} ->
-            truncated_msgid =
-              if String.length(msgid) > 60 do
-                String.slice(msgid, 0, 57) <> "..."
-              else
-                msgid
-              end
-
-            "  #{display_file}:#{line} - \"#{truncated_msgid}\""
+          |> Enum.map_join("\n", fn {line, msgid} ->
+            "  #{display_file}:#{line} - \"#{truncate_msgid(msgid)}\""
           end)
-          |> Enum.join("\n")
 
         remaining = length(items) - 5
         remaining_msg = if remaining > 0, do: "\n  ... and #{remaining} more", else: ""
 
         "#{display_file} (#{length(items)} #{type}):\n#{item_details}#{remaining_msg}"
       end)
-      |> Enum.join("\n\n")
 
     "#{header}#{file_details}"
+  end
+
+  defp truncate_msgid(msgid) do
+    if String.length(msgid) > 60 do
+      String.slice(msgid, 0, 57) <> "..."
+    else
+      msgid
+    end
   end
 end

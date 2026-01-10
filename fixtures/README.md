@@ -1,6 +1,6 @@
 # Test Fixtures
 
-This directory contains minimal Elixir projects used for integration testing of the Quality package.
+This directory contains minimal Elixir projects used for integration testing of the ExQuality package.
 
 ## Purpose
 
@@ -12,7 +12,7 @@ These fixture projects allow us to test the `mix quality` command end-to-end wit
 ## How They Work
 
 Each fixture is a complete, minimal Mix project with:
-- A `mix.exs` with Quality as a path dependency (`{:quality, path: "..", ...}`)
+- A `mix.exs` with ExQuality as a path dependency (`{:ex_quality, path: "..", ...}`)
 - Source files in `lib/` that demonstrate specific scenarios
 - Test files in `test/` appropriate to each scenario
 
@@ -47,7 +47,7 @@ mix quality
 To add a new test scenario:
 
 1. Create a new directory under `fixtures/`
-2. Add a `mix.exs` with `{:quality, path: "..", only: [:dev, :test], runtime: false}`
+2. Add a `mix.exs` with `{:ex_quality, path: "..", only: [:dev, :test], runtime: false}`
 3. Create `lib/` and `test/` directories with your scenario code
 4. Add a test case in `test/integration/quality_test.exs`
 

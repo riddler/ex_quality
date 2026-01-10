@@ -22,6 +22,10 @@ defmodule ExQuality.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test
+      ],
+      dialyzer: [
+        plt_add_apps: [:mix, :jason],
+        flags: [:unmatched_returns, :error_handling, :underspecs]
       ]
     ]
   end
@@ -32,12 +36,14 @@ defmodule ExQuality.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:doctor, "~> 0.21", only: :dev},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:jason, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:mimic, "~> 1.7", only: :test}
+      {:mimic, "~> 1.7", only: :test},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 

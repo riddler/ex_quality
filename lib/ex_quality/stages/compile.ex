@@ -88,8 +88,8 @@ defmodule ExQuality.Stages.Compile do
 
   defp format_success_output(dev_output, test_output) do
     # Only show output if there's something interesting (not just "Compiled in X.Xs")
-    dev_lines = String.split(dev_output, "\n") |> Enum.reject(&is_boring_line?/1)
-    test_lines = String.split(test_output, "\n") |> Enum.reject(&is_boring_line?/1)
+    dev_lines = String.split(dev_output, "\n") |> Enum.reject(&boring_line?/1)
+    test_lines = String.split(test_output, "\n") |> Enum.reject(&boring_line?/1)
 
     parts = []
 
@@ -114,7 +114,7 @@ defmodule ExQuality.Stages.Compile do
     end
   end
 
-  defp is_boring_line?(line) do
+  defp boring_line?(line) do
     trimmed = String.trim(line)
 
     trimmed == "" or

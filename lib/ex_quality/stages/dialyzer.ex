@@ -42,7 +42,7 @@ defmodule ExQuality.Stages.Dialyzer do
       {_, 0} ->
         # Non-zero exit but no warnings found - could be PLT building or other issue
         # Check if it's the common "Could not get Core Erlang code" error for Mix tasks
-        is_debug_info_error = is_debug_info_error?(output)
+        is_debug_info_error = debug_info_error?(output)
 
         if is_debug_info_error do
           # This is a known issue with Mix tasks not having debug_info
@@ -89,7 +89,7 @@ defmodule ExQuality.Stages.Dialyzer do
     |> Enum.count(&String.match?(&1, ~r/\.exs?:\d+:/))
   end
 
-  defp is_debug_info_error?(output) do
+  defp debug_info_error?(output) do
     String.contains?(output, "Could not get Core Erlang code") and
       String.contains?(output, "Recompile with +debug_info")
   end

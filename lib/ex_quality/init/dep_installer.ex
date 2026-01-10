@@ -23,14 +23,14 @@ defmodule ExQuality.Init.DepInstaller do
   def add_dependencies(versions) do
     mix_exs_path = "mix.exs"
 
-    if !File.exists?(mix_exs_path) do
-      {:error, "mix.exs not found in current directory"}
-    else
+    if File.exists?(mix_exs_path) do
       # Read current content
       original_content = File.read!(mix_exs_path)
 
       # Find insertion point and build new deps
       do_add_dependencies(original_content, versions, mix_exs_path)
+    else
+      {:error, "mix.exs not found in current directory"}
     end
   end
 

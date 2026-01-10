@@ -52,7 +52,7 @@ defmodule Mix.Tasks.Quality do
   ## Configuration
 
   Create `.quality.exs` in your project root to customize behavior
-  or override auto-detection. See `ExQuality.Config` for options.
+  or override auto-detection. See `Config` for options.
 
   ## Example Output
 
@@ -72,6 +72,17 @@ defmodule Mix.Tasks.Quality do
 
   use Mix.Task
 
+  alias ExQuality.Config
+  alias ExQuality.Printer
+  alias ExQuality.Stages.Compile
+  alias ExQuality.Stages.Credo
+  alias ExQuality.Stages.Dependencies
+  alias ExQuality.Stages.Dialyzer
+  alias ExQuality.Stages.Doctor
+  alias ExQuality.Stages.Format
+  alias ExQuality.Stages.Gettext
+  alias ExQuality.Stages.Test
+
   @switches [
     quick: :boolean,
     skip_dialyzer: :boolean,
@@ -87,16 +98,16 @@ defmodule Mix.Tasks.Quality do
   """
   def run(args) do
     {opts, _remaining} = OptionParser.parse!(args, switches: @switches)
-    config = ExQuality.Config.load(opts)
+    config = Config.load(opts)
 
     Mix.shell().info("Running quality checks...\n")
 
     # Phase 1: Auto-fix (format)
-    format_result = ExQuality.Stages.Format.run(config)
+    format_result = Format.run(config)
     display_phase_result(format_result)
 
     # Phase 2: Compile (blocking gate)
-    compile_result = ExQuality.Stages.Compile.run(config)
+    compile_result = Compile.run(config)
     display_phase_result(compile_result)
 
     if compile_result.status == :error do
@@ -124,7 +135,7 @@ defmodule Mix.Tasks.Quality do
   end
 
   defp run_analysis_stages(config) do
-    ExQuality.Printer.start_link()
+    {:ok, _pid} = Printer.start_link()
 
     try do
       stages = build_analysis_stages(config)
@@ -133,14 +144,14 @@ defmodule Mix.Tasks.Quality do
         Enum.map(stages, fn {_name, module} ->
           Task.async(fn ->
             result = module.run(config)
-            ExQuality.Printer.print_result(result)
+            Printer.print_result(result)
             result
           end)
         end)
 
       Enum.map(tasks, &Task.await(&1, :infinity))
     after
-      ExQuality.Printer.stop()
+      Printer.stop()
     end
   end
 
@@ -150,48 +161,50 @@ defmodule Mix.Tasks.Quality do
 
     # Add Credo if enabled
     stages =
-      if ExQuality.Config.stage_enabled?(config, :credo) do
-        [{:credo, ExQuality.Stages.Credo} | stages]
+      if Config.stage_enabled?(config, :credo) do
+        [{:credo, Credo} | stages]
       else
         stages
       end
 
     # Add Dialyzer if enabled and not in quick mode
     stages =
-      if ExQuality.Config.stage_enabled?(config, :dialyzer) and not quick_mode do
-        [{:dialyzer, ExQuality.Stages.Dialyzer} | stages]
+      if Config.stage_enabled?(config, :dialyzer) and not quick_mode do
+        [{:dialyzer, Dialyzer} | stages]
       else
         stages
       end
 
     # Add Doctor if enabled
     stages =
-      if ExQuality.Config.stage_enabled?(config, :doctor) do
-        [{:doctor, ExQuality.Stages.Doctor} | stages]
+      if Config.stage_enabled?(config, :doctor) do
+        [{:doctor, Doctor} | stages]
       else
         stages
       end
 
     # Add Gettext if enabled
     stages =
-      if ExQuality.Config.stage_enabled?(config, :gettext) do
-        [{:gettext, ExQuality.Stages.Gettext} | stages]
+      if Config.stage_enabled?(config, :gettext) do
+        [{:gettext, Gettext} | stages]
       else
         stages
       end
 
     # Add Dependencies if enabled
     stages =
-      if ExQuality.Config.stage_enabled?(config, :dependencies) do
-        [{:dependencies, ExQuality.Stages.Dependencies} | stages]
+      if Config.stage_enabled?(config, :dependencies) do
+        [{:dependencies, Dependencies} | stages]
       else
         stages
       end
 
     # Tests always run (but coverage enforcement skipped in quick mode)
-    [{:test, ExQuality.Stages.Test} | stages]
+    [{:test, Test} | stages]
   end
 
+  @dialyzer {:nowarn_function, display_phase_result: 1}
+  @spec display_phase_result(ExQuality.Stage.result()) :: :ok
   defp display_phase_result(result) do
     case result.status do
       :ok ->
