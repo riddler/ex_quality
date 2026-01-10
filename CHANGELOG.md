@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-09
+
 ### Added
 
 - **`mix quality.init`** now automatically configures ExCoveralls in `mix.exs` when coverage is selected:
@@ -87,5 +89,6 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/riddler/ex_quality/releases/tag/v0.2.0
 [0.1.0]: https://github.com/riddler/ex_quality/releases/tag/v0.1.0
