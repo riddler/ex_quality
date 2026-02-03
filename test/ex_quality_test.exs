@@ -3,6 +3,6 @@ defmodule ExQualityTest do
   doctest ExQuality
 
   test "returns version" do
-    assert ExQuality.version() == "0.1.0"
+    assert ExQuality.version() == to_string(Application.spec(:ex_quality, :vsn))
   end
 end

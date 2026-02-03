@@ -29,11 +29,13 @@ defmodule ExQuality.Stages.Test do
     # Use coveralls if available and not in quick mode
     use_coveralls = coverage_available and not quick_mode
 
+    test_args = config |> Keyword.get(:test, []) |> Keyword.get(:args, [])
+
     {command, args} =
       if use_coveralls do
-        {"mix", ["coveralls"]}
+        {"mix", ["coveralls" | test_args]}
       else
-        {"mix", ["test"]}
+        {"mix", ["test" | test_args]}
       end
 
     {output, exit_code} =

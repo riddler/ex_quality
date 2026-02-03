@@ -27,6 +27,23 @@ defmodule Mix.Tasks.Quality do
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
   - `--verbose` - Show full output even on success
 
+  ## Passing Test Options
+
+  You can pass extra arguments to `mix test` or `mix coveralls` using `--`:
+
+      mix quality -- --only integration
+      mix quality --quick -- --include slow --seed 0
+
+  Arguments after `--` are passed directly to the test command.
+
+  Alternatively, configure test args in `.quality.exs`:
+
+      test: [
+        args: ["--only", "integration"]
+      ]
+
+  CLI args (after `--`) override config file args (no merge).
+
   ## Auto-Detection
 
   Stages are automatically enabled based on installed dependencies:
@@ -97,7 +114,8 @@ defmodule Mix.Tasks.Quality do
   Runs the quality check task.
   """
   def run(args) do
-    {opts, _remaining} = OptionParser.parse!(args, switches: @switches)
+    {opts, remaining} = OptionParser.parse!(args, switches: @switches)
+    opts = if remaining != [], do: Keyword.put(opts, :test_args, remaining), else: opts
     config = Config.load(opts)
 
     Mix.shell().info("Running quality checks...\n")
