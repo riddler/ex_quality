@@ -59,6 +59,12 @@ defmodule ExQuality.ConfigTest do
       assert config[:verbose] == true
     end
 
+    test "test_args CLI option sets test args" do
+      config = Config.load(test_args: ["--only", "integration"])
+
+      assert config[:test][:args] == ["--only", "integration"]
+    end
+
     test "includes auto-detected tool availability" do
       config = Config.load()
 

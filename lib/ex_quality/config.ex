@@ -80,6 +80,7 @@ defmodule ExQuality.Config do
     test: [
       # Coverage: uses excoveralls if available, threshold from coveralls config
       # In quick mode: runs mix test only (no coverage enforcement)
+      args: []
     ]
   ]
 
@@ -222,6 +223,13 @@ defmodule ExQuality.Config do
     config =
       if opts[:verbose] do
         Keyword.put(config, :verbose, true)
+      else
+        config
+      end
+
+    config =
+      if opts[:test_args] do
+        Keyword.put(config, :test, args: opts[:test_args])
       else
         config
       end

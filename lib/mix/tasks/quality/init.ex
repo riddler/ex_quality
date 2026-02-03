@@ -306,6 +306,11 @@ defmodule Mix.Tasks.Quality.Init do
       #   enabled: :auto,
       #   check_unused: true,
       #   audit: :auto  # Requires mix_audit package
+      # ],
+
+      # Test options
+      # test: [
+      #   args: ["--only", "integration"]  # Extra args for mix test/coveralls
       # ]
 
       # Note: Coverage threshold is configured in coveralls.json or mix.exs

@@ -360,4 +360,88 @@ defmodule ExQuality.Stages.TestTest do
       assert result.summary == "124 of 124 passed"
     end
   end
+
+  describe "run/1 - test args pass-through" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn :coverage -> false end)
+
+      :ok
+    end
+
+    test "passes extra args to mix test" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--only", "integration"], _opts ->
+        output = """
+        Finished in 2.3 seconds
+        10 tests, 0 failures
+        """
+
+        {output, 0}
+      end)
+
+      config = [test: [args: ["--only", "integration"]]]
+      result = Test.run(config)
+
+      assert result.status == :ok
+      assert result.stats.test_count == 10
+    end
+
+    test "passes extra args to mix coveralls" do
+      ExQuality.Tools
+      |> stub(:available?, fn :coverage -> true end)
+
+      System
+      |> expect(:cmd, fn "mix", ["coveralls", "--only", "integration"], _opts ->
+        output = """
+        Finished in 2.3 seconds
+        10 tests, 0 failures
+        [TOTAL]  85.2%
+        """
+
+        {output, 0}
+      end)
+
+      config = [test: [args: ["--only", "integration"]]]
+      result = Test.run(config)
+
+      assert result.status == :ok
+      assert result.stats.test_count == 10
+      assert result.stats.coverage == 85.2
+    end
+
+    test "handles multiple args" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--include", "slow", "--seed", "0"], _opts ->
+        output = """
+        Finished in 5.0 seconds
+        50 tests, 0 failures
+        """
+
+        {output, 0}
+      end)
+
+      config = [test: [args: ["--include", "slow", "--seed", "0"]]]
+      result = Test.run(config)
+
+      assert result.status == :ok
+      assert result.stats.test_count == 50
+    end
+
+    test "defaults to empty args when not specified" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+        Finished in 2.3 seconds
+        124 tests, 0 failures
+        """
+
+        {output, 0}
+      end)
+
+      result = Test.run([])
+
+      assert result.status == :ok
+    end
+  end
 end
