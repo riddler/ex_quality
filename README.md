@@ -21,7 +21,7 @@ A parallel code quality checker for Elixir projects that runs format, compile, c
 # Add to mix.exs
 def deps do
   [
-    {:ex_quality, "~> 0.2.0", only: :dev, runtime: false}
+    {:ex_quality, "~> 0.3", only: :dev, runtime: false}
   ]
 end
 ```
@@ -140,6 +140,10 @@ mix quality --skip-dependencies
 
 # Combine flags
 mix quality --quick --skip-credo
+
+# Pass options to mix test/coveralls (after --)
+mix quality -- --only integration
+mix quality --quick -- --include slow --seed 0
 ```
 
 ## Auto-Detection
@@ -184,6 +188,11 @@ Create `.quality.exs` in your project root to customize behavior:
   dependencies: [
     check_unused: true,  # Check for unused deps (default: true)
     audit: true          # Run security audit if mix_audit installed (default: :auto)
+  ],
+
+  # Test options - pass extra args to mix test/coveralls
+  test: [
+    args: ["--only", "integration"]  # e.g., --only, --include, --exclude, --seed
   ]
 ]
 ```
@@ -207,6 +216,30 @@ Coverage threshold is **NOT** configured in ExQuality. It reads from your existi
 - `mix.exs` → `test_coverage: [minimum_coverage: 80.0]`
 
 This ensures a **single source of truth** for coverage requirements.
+
+### Test Options
+
+Pass extra arguments to `mix test` or `mix coveralls` using either method:
+
+**Via CLI** (after `--` separator):
+```bash
+mix quality -- --only integration
+mix quality --quick -- --include slow --seed 0
+```
+
+**Via `.quality.exs`**:
+```elixir
+[
+  test: [
+    args: ["--only", "integration"]
+  ]
+]
+```
+
+CLI args override config file args (no merge). This is useful for:
+- Running only specific test tags: `--only integration`, `--exclude slow`
+- Debugging with a specific seed: `--seed 12345`
+- Including normally-excluded tests: `--include pending`
 
 ## Actionable Output
 
@@ -248,7 +281,7 @@ def deps do
     {:gettext, "~> 0.24"},
 
     # Quality checker
-    {:ex_quality, "~> 0.2.0", only: :dev, runtime: false}
+    {:ex_quality, "~> 0.3", only: :dev, runtime: false}
   ]
 end
 ```
