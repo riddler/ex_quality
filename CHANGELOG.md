@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-03
+
+### Added
+
+- **Test options pass-through**: Pass extra arguments to `mix test` or `mix coveralls`:
+  - Via CLI using `--` separator: `mix quality --quick -- --only integration`
+  - Via config file: `test: [args: ["--only", "integration"]]`
+  - CLI args override config file args (no merge)
+  - Supports any test flags: `--only`, `--include`, `--exclude`, `--seed`, etc.
+
 ## [0.2.0] - 2026-01-09
 
 ### Added
@@ -89,6 +99,7 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/riddler/ex_quality/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/riddler/ex_quality/releases/tag/v0.2.0
 [0.1.0]: https://github.com/riddler/ex_quality/releases/tag/v0.1.0
