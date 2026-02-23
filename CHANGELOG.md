@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-23
+
 ### Fixed
 
 - Include `:jason` as a runtime dependency instead of dev/test only, fixing compilation warnings in host projects
@@ -109,7 +111,8 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/riddler/ex_quality/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/riddler/ex_quality/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/riddler/ex_quality/releases/tag/v0.2.0
 [0.1.0]: https://github.com/riddler/ex_quality/releases/tag/v0.1.0
