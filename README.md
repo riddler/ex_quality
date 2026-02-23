@@ -21,7 +21,7 @@ A parallel code quality checker for Elixir projects that runs format, compile, c
 # Add to mix.exs
 def deps do
   [
-    {:ex_quality, "~> 0.4", only: :dev, runtime: false}
+    {:ex_quality, "~> 0.5", only: :dev, runtime: false}
   ]
 end
 ```
@@ -281,7 +281,7 @@ def deps do
     {:gettext, "~> 0.24"},
 
     # Quality checker
-    {:ex_quality, "~> 0.4", only: :dev, runtime: false}
+    {:ex_quality, "~> 0.5", only: :dev, runtime: false}
   ]
 end
 ```

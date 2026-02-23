@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-23
+
 ### Changed
 
 - Condensed `usage-rules.md` by removing first-time setup, auto-detection, and detailed configuration sections that aren't needed for day-to-day LLM usage
@@ -115,7 +117,8 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/riddler/ex_quality/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/riddler/ex_quality/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/riddler/ex_quality/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/riddler/ex_quality/releases/tag/v0.2.0
