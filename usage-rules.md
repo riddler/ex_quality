@@ -2,38 +2,7 @@
 
 ## Overview
 
-ExQuality is a parallel code quality checker for Elixir that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently.
-
-## First-time Setup
-
-After adding `:ex_quality` to your dependencies:
-
-```bash
-# Interactive setup (recommended)
-mix quality.init
-
-# Use defaults without prompts
-mix quality.init --skip-prompts
-
-# Install all available tools
-mix quality.init --all
-```
-
-This will:
-- Detect which tools are already installed
-- Prompt for which tools to add (credo, dialyzer, excoveralls recommended)
-- Add dependencies to mix.exs with latest versions
-- Run `mix deps.get` automatically
-- Create tool configs (.credo.exs, coveralls.json, etc.)
-- Create .quality.exs configuration file
-
-**Available tools:**
-- `credo` - Static code analysis
-- `dialyzer` - Type checking (dialyxir)
-- `coverage` - Test coverage (excoveralls)
-- `doctor` - Documentation coverage
-- `audit` - Security scanning (mix_audit)
-- `gettext` - Internationalization
+ExQuality is a parallel code quality checker for Elixir that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently. Stages are auto-enabled based on installed dependencies (e.g., credo, dialyxir, doctor, gettext, mix_audit, excoveralls).
 
 ## Core Commands
 
@@ -65,37 +34,9 @@ mix quality --skip-dependencies   # Skip dependency checks
 
 Flags can be combined: `mix quality --quick --skip-credo`
 
-## Auto-Detection
-
-ExQuality automatically enables stages based on installed dependencies:
-
-- **Credo** - Auto-enabled if `:credo` installed
-- **Dialyzer** - Auto-enabled if `:dialyxir` installed
-- **Dependencies** - Always runs (unused deps check)
-  - Security audit auto-enabled if `:mix_audit` installed
-- **Doctor** - Auto-enabled if `:doctor` installed
-- **Gettext** - Auto-enabled if `:gettext` installed
-- **Coverage** - Uses `:excoveralls` if installed, else plain `mix test`
-
 ## Configuration
 
-Create `.quality.exs` in project root:
-
-```elixir
-[
-  # Disable specific stage
-  dialyzer: [enabled: false],
-
-  # Make credo less strict
-  credo: [strict: false],
-
-  # Configure dependencies
-  dependencies: [
-    check_unused: true,
-    audit: false  # Skip security audit
-  ]
-]
-```
+Stages can be configured in `.quality.exs` (e.g., `[dialyzer: [enabled: false], credo: [strict: false]]`).
 
 ## Important: Do Not Truncate Output
 
