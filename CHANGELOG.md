@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Include `:jason` as a runtime dependency instead of dev/test only, fixing compilation warnings in host projects
+- Pass `--no-compile` to `mix dialyzer` to avoid race conditions with parallel analysis stages competing over `_build/dev`
+- Mark tests using `File.cd!` as `async: false` to prevent intermittent compilation failures from global working directory changes
+
+### Changed
+
+- Updated `usage-rules.md` to instruct LLMs not to truncate `mix quality` output
+
 ## [0.3.0] - 2026-02-03
 
 ### Added

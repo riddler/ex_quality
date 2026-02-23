@@ -44,7 +44,6 @@ mix quality --quick
 - **Use during**: Active development, frequent changes, implementing features
 - **Runs**: format, compile (dev+test), credo, dependencies, tests, doctor/gettext
 - **Skips**: dialyzer (slow), coverage enforcement
-- **Speed**: ~5 seconds typically
 
 ### Full mode (verification)
 ```bash
@@ -96,6 +95,20 @@ Create `.quality.exs` in project root:
     audit: false  # Skip security audit
   ]
 ]
+```
+
+## Important: Do Not Truncate Output
+
+Do not pipe `mix quality` output through `tail`, `head`, or any truncation. The tool already captures and manages output to present only the minimal result needed. Truncating may hide critical failure details, file:line references, and summary information.
+
+```bash
+# Correct
+mix quality
+mix quality --quick
+
+# Wrong - do not truncate
+mix quality | tail -50
+mix quality 2>&1 | tail -100
 ```
 
 ## Working with ExQuality Output

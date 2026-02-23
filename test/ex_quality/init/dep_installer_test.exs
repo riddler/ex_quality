@@ -1,5 +1,7 @@
 defmodule ExQuality.Init.DepInstallerTest do
-  use ExUnit.Case, async: true
+  # async: false because File.cd! changes the OS process working directory,
+  # which can cause race conditions with the parallel compiler.
+  use ExUnit.Case, async: false
 
   alias ExQuality.Init.DepInstaller
 

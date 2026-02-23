@@ -41,7 +41,7 @@ defmodule ExQuality.MixProject do
       {:doctor, "~> 0.21", only: :dev},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
-      {:jason, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:jason, "~> 1.4"},
       {:mimic, "~> 1.7", only: :test},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]

@@ -20,7 +20,7 @@ defmodule ExQuality.Stages.Dialyzer do
     start_time = System.monotonic_time(:millisecond)
 
     {output, exit_code} =
-      System.cmd("mix", ["dialyzer"],
+      System.cmd("mix", ["dialyzer", "--no-compile"],
         env: [{"MIX_ENV", "dev"}],
         stderr_to_stdout: true
       )

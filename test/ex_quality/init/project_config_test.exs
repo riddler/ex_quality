@@ -1,5 +1,7 @@
 defmodule ExQuality.Init.ProjectConfigTest do
-  use ExUnit.Case, async: true
+  # async: false because File.cd! changes the OS process working directory,
+  # which can cause race conditions with the parallel compiler.
+  use ExUnit.Case, async: false
 
   test "adds test_coverage config to mix.exs when not present" do
     in_tmp_dir(fn ->
