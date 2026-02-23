@@ -7,7 +7,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - no warnings" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         output = """
         Finding suitable PLTs
         Checking PLT...
@@ -46,7 +46,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - warnings found" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         output = """
         Proceeding with analysis...
 
@@ -87,7 +87,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - single warning" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         output = """
         lib/my_app/user.ex:42:no_return
         Function create/1 has no local return.
@@ -113,7 +113,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - with skipped files" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         output = """
         Could not get Core Erlang code for: /path/to/beam/file.beam
         Recompile with +debug_info or analyze the .erl file instead
@@ -140,7 +140,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - timing" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         Process.sleep(10)
         {"Total errors: 0", 0}
       end)
@@ -159,7 +159,7 @@ defmodule ExQuality.Stages.DialyzerTest do
   describe "run/1 - configuration" do
     setup do
       System
-      |> expect(:cmd, fn "mix", ["dialyzer"], _opts ->
+      |> expect(:cmd, fn "mix", ["dialyzer", "--no-compile"], _opts ->
         {"Total errors: 0", 0}
       end)
 
