@@ -247,7 +247,7 @@ defmodule Mix.Tasks.Quality do
       Mix.shell().info(String.duplicate("─", 60))
 
       if failure.output != "" do
-        Mix.shell().info(failure.output)
+        IO.write(failure.output)
       end
 
       Mix.shell().info("")
