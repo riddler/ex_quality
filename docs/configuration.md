@@ -26,6 +26,7 @@ mix quality --skip-doctor         # skip documentation coverage
 mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
+mix quality --skip KEY            # skip any stage by key; repeatable
 mix quality --verbose             # print full output even for stages that passed
 mix quality --report PATH         # also write a JSON report to PATH
 mix quality --format json         # JSON report on stdout, human output on stderr
@@ -37,6 +38,19 @@ A skipped stage is still reported, with the flag as its reason:
 
 ```
 ○ Credo: skipped (--skip-credo)
+```
+
+`--skip KEY` takes a stage key rather than being one switch per stage, so it
+also reaches a custom stage, which has no `--skip-<key>` of its own. It is
+repeatable, and it names itself as the reason:
+
+```bash
+mix quality --skip nullability --skip credo
+```
+
+```
+○ Nullability: skipped (--skip nullability)
+○ Credo: skipped (--skip credo)
 ```
 
 ## `.quality.exs`
@@ -55,7 +69,10 @@ A keyword list at the project root. Every key is optional.
   credo: [
     enabled: :auto,
     strict: true,
-    all: false
+    all: false,
+    # Names of the .credo.exs configs to run, in order. nil is one run with no
+    # --config-name, which is credo's own default. See docs/stages.md.
+    configs: nil
   ],
 
   dialyzer: [
@@ -111,6 +128,83 @@ Every stage takes one of three values:
 | `:auto` | run when the tool is installed (the default) |
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
+
+## Custom stages
+
+A project's own check - a house rule, a schema linter, a custom mix task, a
+shell script gate - runs as a stage of the run rather than beside it, declared
+under `custom:`. It then has the same parallelism, timing, printer and JSON
+report as a built-in stage, which is what lets a caller route its findings.
+
+```elixir
+custom: [
+  # A command. This is the case most projects want.
+  [
+    key: :nullability,
+    name: "Nullability",
+    command: "mix",
+    args: ["schema.nullability", "--format", "json"],
+    env: [{"MIX_ENV", "test"}],
+    kind: :reader
+  ],
+
+  # A module, for anything the command form cannot express.
+  [key: :house_rules, name: "House rules", module: MyApp.Quality.HouseRules]
+]
+```
+
+Every entry is a keyword list with `key` and `name`, plus either `module` or
+`command`. Registration lives in the entry rather than in callbacks on a module
+so the config file alone says what a run will contain: a stage that only
+announces itself once it has run cannot be reported as skipped.
+
+### Module entries
+
+`module:` names a module exporting `run/1` and returning an
+`ExQuality.Stage.result()` - the contract every built-in stage already
+satisfies. It may also export `stage_kind/1`; a module that does not is a
+reader.
+
+### Command entries
+
+| Key | Default | Meaning |
+|---|---|---|
+| `command`, `args` | required | passed to `System.cmd/3` |
+| `env` | `[]` | extra environment |
+| `cd` | project root | working directory |
+| `kind` | `:reader` | `:writer` runs it serialized, ahead of the readers |
+| `parse` | `:json` | `:json` attempts the finding contract, `:none` never tries |
+| `skip_exit_code` | none | exit code meaning "not applicable" |
+| `enabled` | `true` | `false` skips the stage, reported with the file as the reason |
+
+Exit code 0 is a pass, anything else is a failure. The command runs with
+`stderr_to_stdout: true`. The JSON finding contract, and the reader/writer
+warning, are in [stages.md](stages.md#custom-stages).
+
+### Validation
+
+A malformed entry fails the run at load time and names itself, because a stage
+that never registers is a check nobody is told is not running. The rules:
+
+- `key` and `name` are both required.
+- exactly one of `module` or `command`.
+- `key` and `name` may not collide with a built-in stage. A custom stage
+  shadowing Credo is the same class of bug as an aliased mix task.
+- `key` must be unique across entries.
+- `kind` must be `:reader` or `:writer`; `parse` must be `:json` or `:none`;
+  `skip_exit_code` must be an integer.
+- `module` must be loadable and export `run/1`.
+
+### What custom stages are not for
+
+Filling gaps in built-in stages. Routing a second `mix credo` config through a
+custom command would work and would be a mistake: the output comes back as text
+instead of per-check findings, and per-check routing is the reason the JSON
+report exists. If a built-in stage cannot express something its tool supports,
+that is a bug in the stage - `credo.configs` exists for exactly that reason.
+
+Nor are they a way to get out from under a failing check. Converting a stage
+into a custom one so it can be skipped moves the problem rather than fixing it.
 
 ## Test arguments
 

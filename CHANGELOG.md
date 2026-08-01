@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Credo can run more than one config.** A `.credo.exs` that declares a second config - the usual case is one check over `priv/*/migrations/`, which sits outside credo's default `files.included` - had that config silently never run, because the stage always invoked `mix credo` once with no `--config-name`. A check the project believes is enforced, was not. `credo: [configs: ["default", "migrations"]]` now runs one invocation per name, in order, and merges the results into one stage result
+- Findings from multiple credo configs are deduplicated on `{file, line, column, check}`, so two configs with overlapping `files` globs do not double an issue count
+- A credo run that fails without reporting issues now names the config it came from (`Check failed in "migrations" (see output)`), because the likeliest cause is a config name `.credo.exs` does not define
+- **Custom stages.** A project with a house check, a schema linter, a custom mix task or a shell script gate could have ExQuality's parallelism, timing, report and printer, or it could have its own check, but not both - so those checks lived outside the run, outside the JSON report, and outside anything that routes findings to fixers. `custom:` in `.quality.exs` registers them as stages. An entry names either a `module:` implementing the existing `ExQuality.Stage` contract, or a `command:` run by the new `ExQuality.Stages.Command`
+- A custom command reports structured findings by printing one JSON document on stdout (`summary`, `stats`, `findings`); only `file` and `message` are required per finding, and `app` is inferred from the path. Output that does not parse falls through verbatim, as everywhere else. `parse: :none` opts out for a command known to print prose
+- `skip_exit_code:` lets a custom command say "not applicable" - a nullability check needs a migrated test database, and without it the stage fails with a database error that reads like a code problem. The stage reports `:skipped` with the command's own reason instead
+- `--skip <key>` skips any stage by key, built-in or custom, and is repeatable. `@switches` is static, so a custom stage could never have a `--skip-<key>` generated for it. The existing `--skip-credo` and friends are unchanged
+- `ExQuality.Finding.from_map/2`, the reading half of the report's finding encoding. It is what a custom command's output is decoded with, and what a consumer of a report needs in order to read one back
+
+### Changed
+
+- Malformed `custom:` entries fail the run at load time and name the offending entry: a missing `key` or `name`, neither or both of `module`/`command`, a key or name colliding with a built-in stage, a duplicate key, an unknown `kind`, or a module that is not loadable or does not export `run/1`. A stage that never registers is a check nobody is told is not running
+
 ## [0.8.0] - 2026-08-01
 
 ### Fixed

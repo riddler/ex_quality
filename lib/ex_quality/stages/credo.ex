@@ -18,6 +18,24 @@ defmodule ExQuality.Stages.Credo do
   document is reported with whatever credo did say, which is what a version too
   old to know `--format json` produces.
 
+  ## Multiple configs
+
+  A `.credo.exs` can declare more than one config, and a check that lives in a
+  second config does not run under the default one. `credo: [configs: ["default",
+  "migrations"]]` runs `mix credo` once per name, in order, and merges the
+  results into one stage result. Without it, one run happens with no
+  `--config-name`, which is credo's own default.
+
+  The runs are serial, not concurrent. `mix credo` runs with `MIX_ENV=dev` and
+  can compile, and two concurrent mix runs against the same `_build` is the
+  hazard the reader/writer split in the analysis phase exists to avoid. The
+  stage as a whole still runs in parallel with every other analysis stage.
+
+  Findings are deduplicated on `{file, line, column, check}` before sorting,
+  because two configs whose `files` globs overlap can report the same issue
+  twice, and a doubled count is worse than a missed one: it is not obviously
+  wrong.
+
   Note: Credo does not support auto-fix. All issues must be manually resolved.
   """
 
@@ -41,6 +59,8 @@ defmodule ExQuality.Stages.Credo do
 
   - `strict` - Use `--strict` mode (default: true)
   - `all` - Use `--all` flag to check all files (default: false)
+  - `configs` - Names of the `.credo.exs` configs to run, in order
+    (default: `nil`, meaning one run with no `--config-name`)
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
@@ -58,57 +78,97 @@ defmodule ExQuality.Stages.Credo do
     strict = Keyword.get(credo_config, :strict, true)
     all = Keyword.get(credo_config, :all, false)
 
+    runs =
+      credo_config
+      |> Keyword.get(:configs)
+      |> config_names()
+      |> Enum.map(&run_config(&1, strict, all))
+
+    report(runs, System.monotonic_time(:millisecond) - start_time)
+  end
+
+  # No names, or an empty list, is one run under credo's own default config,
+  # which is what a project that has never heard of this option gets.
+  defp config_names(names) when is_list(names) and names != [], do: names
+  defp config_names(_none), do: [nil]
+
+  defp run_config(name, strict, all) do
     {output, exit_code} =
-      System.cmd("mix", build_args(strict, all),
+      System.cmd("mix", build_args(strict, all, name),
         env: [{"MIX_ENV", "dev"}],
         stderr_to_stdout: true
       )
 
-    duration_ms = System.monotonic_time(:millisecond) - start_time
+    issues =
+      case Json.decode(output) do
+        {:ok, %{"issues" => issues}} when is_list(issues) -> issues
+        _no_report -> nil
+      end
 
-    case Json.decode(output) do
-      {:ok, %{"issues" => issues}} when is_list(issues) ->
-        report(issues, output, exit_code, duration_ms)
+    %{name: name, output: output, exit_code: exit_code, issues: issues}
+  end
 
-      _no_report ->
-        unparsed(output, exit_code, duration_ms)
+  defp build_args(strict, all, name) do
+    args = ["credo", "--format", "json"]
+    args = if strict, do: args ++ ["--strict"], else: args
+    args = if all, do: args ++ ["--all"], else: args
+
+    if name, do: args ++ ["--config-name", name], else: args
+  end
+
+  defp report(runs, duration_ms) do
+    output = merged_output(runs)
+
+    case Enum.find(runs, &broken?/1) do
+      # A run that printed no report and failed either broke or is too old to
+      # know `--format json`. There is nothing to parse, so credo's own output
+      # stands on its own, attributed to the config that produced it.
+      %{name: name} ->
+        %{
+          name: "Credo",
+          status: :error,
+          output: output,
+          stats: %{},
+          summary: "Credo did not produce a report#{for_config(name)}",
+          duration_ms: duration_ms
+        }
+
+      nil ->
+        runs |> parsed_findings() |> merged(runs, output, duration_ms)
     end
   end
 
-  defp build_args(strict, all) do
-    args = ["credo", "--format", "json"]
-    args = if strict, do: args ++ ["--strict"], else: args
+  defp broken?(%{issues: nil, exit_code: exit_code}), do: exit_code != 0
+  defp broken?(_run), do: false
 
-    if all, do: args ++ ["--all"], else: args
+  defp merged([], runs, output, duration_ms) do
+    case Enum.find(runs, &(&1.exit_code != 0)) do
+      # Credo reported no issues and failed anyway, which is credo saying
+      # something about itself rather than about the code. The most likely
+      # cause is a config name `.credo.exs` does not define, so name it.
+      %{name: name} ->
+        %{
+          name: "Credo",
+          status: :error,
+          output: output,
+          stats: %{issue_count: 0},
+          summary: "Check failed#{for_config(name)} (see output)",
+          duration_ms: duration_ms
+        }
+
+      nil ->
+        %{
+          name: "Credo",
+          status: :ok,
+          output: output,
+          stats: %{issue_count: 0},
+          summary: "No issues",
+          duration_ms: duration_ms
+        }
+    end
   end
 
-  defp report([], output, 0, duration_ms) do
-    %{
-      name: "Credo",
-      status: :ok,
-      output: output,
-      stats: %{issue_count: 0},
-      summary: "No issues",
-      duration_ms: duration_ms
-    }
-  end
-
-  # Credo reported no issues and failed anyway, which is credo saying something
-  # about itself rather than about the code. Its output is the answer.
-  defp report([], output, _exit_code, duration_ms) do
-    %{
-      name: "Credo",
-      status: :error,
-      output: output,
-      stats: %{issue_count: 0},
-      summary: "Check failed (see output)",
-      duration_ms: duration_ms
-    }
-  end
-
-  defp report(issues, output, _exit_code, duration_ms) do
-    parsed = findings(issues)
-
+  defp merged(parsed, _runs, output, duration_ms) do
     %{
       name: "Credo",
       status: :error,
@@ -120,38 +180,37 @@ defmodule ExQuality.Stages.Credo do
     }
   end
 
-  # A run that printed no report either passed silently or broke. Either way
-  # there is nothing to parse, so the tool's output stands on its own.
-  defp unparsed(output, 0, duration_ms) do
-    %{
-      name: "Credo",
-      status: :ok,
-      output: output,
-      stats: %{issue_count: 0},
-      summary: "No issues",
-      duration_ms: duration_ms
-    }
-  end
+  defp for_config(nil), do: ""
+  defp for_config(name), do: ~s( in "#{name}")
 
-  defp unparsed(output, _exit_code, duration_ms) do
-    %{
-      name: "Credo",
-      status: :error,
-      output: output,
-      stats: %{},
-      summary: "Credo did not produce a report",
-      duration_ms: duration_ms
-    }
+  # A single unnamed run's output is passed through untouched, because there is
+  # nothing to attribute it to. Named runs are labelled so a reader can tell
+  # which config produced which half of the output.
+  defp merged_output([%{name: nil, output: output}]), do: output
+
+  defp merged_output(runs) do
+    Enum.map_join(runs, "\n", fn %{name: name, output: output} ->
+      "── credo --config-name #{name} ──\n#{output}"
+    end)
   end
 
   # Findings are carried as `{finding, category}` pairs, because the summary
   # breaks down by category and `check` has already been spent on the check
   # module, which is the more specific of the two.
-  defp findings(issues) do
+  defp parsed_findings(runs) do
     # Read the umbrella layout once rather than once per finding.
     apps = Umbrella.apps_paths()
 
-    Enum.flat_map(issues, &finding(&1, apps))
+    runs
+    |> Enum.flat_map(&(&1.issues || []))
+    |> Enum.flat_map(&finding(&1, apps))
+    |> Enum.uniq_by(&identity/1)
+  end
+
+  # Two configs whose `files` globs overlap report the same issue twice, and a
+  # doubled count is worse than a missed one because it is not obviously wrong.
+  defp identity({finding, _category}) do
+    {finding.file, finding.line, finding.column, finding.check}
   end
 
   defp finding(%{"message" => message} = issue, apps) when is_binary(message) do

@@ -61,7 +61,10 @@ defmodule ExQuality.Stage do
           optional(:finding_count) => non_neg_integer(),
           optional(:blocking_count) => non_neg_integer(),
           optional(:informational_count) => non_neg_integer(),
-          optional(:blocking_by_confidence) => [{String.t(), non_neg_integer()}]
+          optional(:blocking_by_confidence) => [{String.t(), non_neg_integer()}],
+          # A custom stage carries its tool's own stats, string-keyed: the names
+          # come from a config file, and atomising arbitrary ones is unbounded.
+          optional(String.t()) => term()
         }
 
   @type result :: %{

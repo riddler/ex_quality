@@ -26,6 +26,7 @@ defmodule Mix.Tasks.Quality do
   - `--skip-gettext` - Skip Gettext translation checks
   - `--skip-sobelow` - Skip Sobelow security analysis
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
+  - `--skip KEY` - Skip any stage by key, built-in or custom; repeatable
   - `--verbose` - Show full output even on success
   - `--format json` - Write a JSON report to stdout, human output to stderr
   - `--report PATH` - Write a JSON report to PATH, human output to stdout
@@ -75,6 +76,14 @@ defmodule Mix.Tasks.Quality do
   Create `.quality.exs` in your project root to customize behavior
   or override auto-detection. See `Config` for options.
 
+  ## Custom Stages
+
+  A project's own check - a house rule, a schema linter, a shell script gate -
+  runs as a stage of the run rather than beside it, declared under `custom:` in
+  `.quality.exs`. It gets the same parallelism, timing, printer and JSON report
+  as a built-in stage, which is what lets a caller route its findings. See
+  `ExQuality.Custom`.
+
   ## Example Output
 
       Running quality checks...
@@ -121,6 +130,7 @@ defmodule Mix.Tasks.Quality do
   use Mix.Task
 
   alias ExQuality.Config
+  alias ExQuality.Custom
   alias ExQuality.Finding
   alias ExQuality.Printer
   alias ExQuality.Report
@@ -154,6 +164,7 @@ defmodule Mix.Tasks.Quality do
     skip_gettext: :boolean,
     skip_sobelow: :boolean,
     skip_dependencies: :boolean,
+    skip: :keep,
     verbose: :boolean,
     format: :string,
     report: :string
@@ -268,10 +279,7 @@ defmodule Mix.Tasks.Quality do
       # reader knows what this run is not evidence for.
       Enum.each(skipped, &Printer.print_result/1)
 
-      {writers, readers} =
-        Enum.split_with(stages, fn {_stage, module, _name} ->
-          Stage.kind(module, config) == :writer
-        end)
+      {writers, readers} = Enum.split_with(stages, &(&1.kind == :writer))
 
       # Writers go first, one at a time. A stage that recompiles the project
       # rewrites the beams the readers are part-way through, and the reader
@@ -286,8 +294,8 @@ defmodule Mix.Tasks.Quality do
     end
   end
 
-  defp run_stage({_stage, module, _name}, config) do
-    result = module.run(config)
+  defp run_stage(stage, config) do
+    result = stage.run.(config)
     Printer.print_result(result)
     result
   end
@@ -296,14 +304,51 @@ defmodule Mix.Tasks.Quality do
   # Tests always run (but coverage enforcement is skipped in quick mode).
   defp build_analysis_stages(config) do
     {stages, skipped} =
-      Enum.reduce(@analysis_stages, {[], []}, fn {stage, module, name}, {stages, skipped} ->
-        case stage_skip_reason(config, stage) do
-          nil -> {[{stage, module, name} | stages], skipped}
-          reason -> {stages, [Stage.skipped(name, reason) | skipped]}
+      Enum.reduce(candidate_stages(config), {[], []}, fn stage, {stages, skipped} ->
+        case stage.skip_reason do
+          nil -> {[stage | stages], skipped}
+          reason -> {stages, [Stage.skipped(stage.name, reason) | skipped]}
         end
       end)
 
-    {Enum.reverse([{:test, Test, "Tests"} | stages]), Enum.reverse(skipped)}
+    {Enum.reverse([test_stage(config) | stages]), Enum.reverse(skipped)}
+  end
+
+  # Built-ins first, then the project's own stages, in declaration order. Both
+  # kinds are the same shape from here on, which is why the writer/reader
+  # split, the printer and the report need to know nothing about custom stages.
+  defp candidate_stages(config) do
+    builtin =
+      Enum.map(@analysis_stages, fn {key, module, name} ->
+        stage(
+          key,
+          name,
+          Stage.kind(module, config),
+          &module.run/1,
+          stage_skip_reason(config, key)
+        )
+      end)
+
+    custom =
+      Enum.map(Custom.stages(config), fn entry ->
+        stage(
+          Keyword.fetch!(entry, :key),
+          Keyword.fetch!(entry, :name),
+          Custom.kind(entry, config),
+          Custom.runner(entry),
+          Custom.skip_reason(config, entry)
+        )
+      end)
+
+    builtin ++ custom
+  end
+
+  defp test_stage(config) do
+    stage(:test, "Tests", Stage.kind(Test, config), &Test.run/1, nil)
+  end
+
+  defp stage(key, name, kind, run, skip_reason) do
+    %{key: key, name: name, kind: kind, run: run, skip_reason: skip_reason}
   end
 
   # The stages of a run that stopped before the analysis phase: the ones that
@@ -311,7 +356,7 @@ defmodule Mix.Tasks.Quality do
   defp analysis_stages_not_run(config, reason) do
     {stages, skipped} = build_analysis_stages(config)
 
-    skipped ++ Enum.map(stages, fn {_stage, _module, name} -> Stage.skipped(name, reason) end)
+    skipped ++ Enum.map(stages, &Stage.skipped(&1.name, reason))
   end
 
   defp stage_skip_reason(config, :dialyzer) do

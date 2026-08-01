@@ -44,6 +44,8 @@ defmodule ExQuality.Config do
   - `compile.warnings_as_errors` - Treat warnings as errors (default: true)
   - `credo.strict` - Use strict mode (default: true)
   - `credo.all` - Check all files (default: false)
+  - `credo.configs` - Names of the `.credo.exs` configs to run, in order
+    (default: `nil`, meaning one run with no `--config-name`)
   - `dependencies.check_unused` - Check for unused dependencies (default: true)
   - `dependencies.audit` - Run security audit if available (default: :auto)
   - `doctor.summary_only` - Show only summary (default: false)
@@ -71,7 +73,10 @@ defmodule ExQuality.Config do
     credo: [
       enabled: :auto,
       strict: true,
-      all: false
+      all: false,
+      # Names of the `.credo.exs` configs to run, in order. nil is one run with
+      # no --config-name, which is credo's own default.
+      configs: nil
     ],
     dialyzer: [
       enabled: :auto
@@ -136,10 +141,18 @@ defmodule ExQuality.Config do
     file_config = load_file_config()
     cli_config = cli_to_config(cli_opts)
 
-    defaults
-    |> deep_merge(detected)
-    |> deep_merge(file_config)
-    |> deep_merge(cli_config)
+    config =
+      defaults
+      |> deep_merge(detected)
+      |> deep_merge(file_config)
+      |> deep_merge(cli_config)
+
+    # A custom stage that is malformed does not register, and a stage that does
+    # not register is a check nobody is told is not running. That is a run to
+    # fail rather than one to weaken quietly.
+    ExQuality.Custom.validate!(config)
+
+    config
   end
 
   @doc """
@@ -196,6 +209,9 @@ defmodule ExQuality.Config do
       stage_config = Keyword.get(config, stage, [])
 
       case Keyword.get(stage_config, :disabled_by) do
+        # The generic switch carries its own spelling, because `--skip nullability`
+        # names a stage that has no `--skip-nullability` to point at.
+        {:cli, switch} -> switch
         :cli -> "--skip-#{stage}"
         :config -> "disabled in .quality.exs"
         _other -> unavailable_reason(stage)
@@ -299,7 +315,7 @@ defmodule ExQuality.Config do
   defp annotate_disabled(config, source) do
     Enum.map(config, fn
       {stage, opts} when is_list(opts) ->
-        if Keyword.get(opts, :enabled) == false do
+        if Keyword.get(opts, :enabled) == false and not Keyword.has_key?(opts, :disabled_by) do
           {stage, Keyword.put(opts, :disabled_by, source)}
         else
           {stage, opts}
@@ -325,11 +341,26 @@ defmodule ExQuality.Config do
       end)
 
     config
+    |> put_skips(opts)
     # --quick mode: skip dialyzer, skip coverage enforcement
     |> put_flag(opts, :quick)
     |> put_flag(opts, :verbose)
     |> put_test_args(opts)
     |> annotate_disabled(:cli)
+  end
+
+  # `--skip <key>` is repeatable and works for a custom stage as well as a
+  # built-in one, because `@switches` is static and a custom key cannot have a
+  # `--skip-<key>` generated for it.
+  defp put_skips(config, opts) do
+    opts
+    |> Keyword.get_values(:skip)
+    |> Enum.reduce(config, fn name, config ->
+      Keyword.put(config, String.to_atom(name),
+        enabled: false,
+        disabled_by: {:cli, "--skip #{name}"}
+      )
+    end)
   end
 
   defp put_flag(config, opts, key) do
