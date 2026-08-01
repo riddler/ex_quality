@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-01
+
 ### Fixed
 
 - **Dialyzer could report `✓ No warnings` on a project with 110 real warnings.** The Gettext stage ran `mix gettext.extract --merge`, which recompiles the project, alongside the analysis stages that read the same build. Dialyzer, invoked with `--no-compile`, hit `Could not get Core Erlang code` and produced nothing, and the debug_info escape hatch promoted that to a pass
