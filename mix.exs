@@ -58,6 +58,9 @@ defmodule ExQuality.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
+      # `assets` is deliberately absent: HexDocs is built from the checkout at
+      # publish time, so the mark reaches the docs without every project that
+      # depends on this one downloading it.
       files: ~w(lib docs .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md)
     ]
   end
@@ -65,6 +68,9 @@ defmodule ExQuality.MixProject do
   defp docs do
     [
       main: "readme",
+      logo: "assets/ex_quality.svg",
+      favicon: "assets/favicon.png",
+      assets: %{"assets" => "assets"},
       extras: [
         "README.md",
         "docs/configuration.md",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A project mark under `assets/`: an SVG with a transparent surround, so it reads on a light or a dark background, plus PNG renders from 512 down to 32. It is the README's header, and the published docs' logo and favicon. The assets are not shipped in the package: HexDocs is built from the checkout at publish time, so nothing downloading the dependency needs them
+
 ## [0.7.0] - 2026-08-01
 
 ### Added

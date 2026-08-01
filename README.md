@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/ex_quality.svg" alt="" width="128" height="128">
+</p>
+
 # ExQuality
 
 Runs an Elixir project's quality tools in parallel and reports the run as a
