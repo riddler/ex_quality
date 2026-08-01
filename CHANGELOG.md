@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-01
+
 ### Added
 
 - **Credo can run more than one config.** A `.credo.exs` that declares a second config - the usual case is one check over `priv/*/migrations/`, which sits outside credo's default `files.included` - had that config silently never run, because the stage always invoked `mix credo` once with no `--config-name`. A check the project believes is enforced, was not. `credo: [configs: ["default", "migrations"]]` now runs one invocation per name, in order, and merges the results into one stage result
