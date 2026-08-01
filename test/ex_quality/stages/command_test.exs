@@ -50,6 +50,53 @@ defmodule ExQuality.Stages.CommandTest do
       assert Command.run(Keyword.put(@entry, :cd, "apps/web")).status == :ok
     end
 
+    test "leaves a bare command name for the PATH to resolve" do
+      System
+      |> expect(:cmd, fn command, _args, _opts ->
+        assert command == "mix"
+        {"", 0}
+      end)
+
+      assert Command.run(@entry).status == :ok
+    end
+
+    test "expands a command carrying a path separator against the project root" do
+      System
+      |> expect(:cmd, fn command, _args, _opts ->
+        assert command == Path.expand("bin/checks/schema.sh", File.cwd!())
+        assert Path.type(command) == :absolute
+        {"", 0}
+      end)
+
+      entry = Keyword.put(@entry, :command, "bin/checks/schema.sh")
+
+      assert Command.run(entry).status == :ok
+    end
+
+    test "expands a relative command against cd when the entry names one" do
+      System
+      |> expect(:cmd, fn command, _args, _opts ->
+        assert command == Path.expand("assets/bin/build.sh", File.cwd!())
+        {"", 0}
+      end)
+
+      entry = Keyword.merge(@entry, command: "bin/build.sh", cd: "assets")
+
+      assert Command.run(entry).status == :ok
+    end
+
+    test "leaves an absolute command as it stands" do
+      System
+      |> expect(:cmd, fn command, _args, _opts ->
+        assert command == "/usr/local/bin/check"
+        {"", 0}
+      end)
+
+      entry = Keyword.put(@entry, :command, "/usr/local/bin/check")
+
+      assert Command.run(entry).status == :ok
+    end
+
     test "reports a command that could not be run rather than crashing the run" do
       System
       |> expect(:cmd, fn _cmd, _args, _opts -> raise ErlangError, original: :enoent end)
@@ -197,6 +244,51 @@ defmodule ExQuality.Stages.CommandTest do
       assert result.status == :skipped
       assert result.summary == "test database is not migrated"
       assert result.output =~ "not migrated"
+    end
+
+    test "prefers the document's summary to the first line of output" do
+      System
+      |> expect(:cmd, fn _cmd, _args, _opts ->
+        output =
+          "==> web\n" <>
+            document(%{"summary" => "the database has no tables - run bin/test-setup"})
+
+        {output, 2}
+      end)
+
+      result = Command.run(Keyword.put(@entry, :skip_exit_code, 2))
+
+      assert result.status == :skipped
+      assert result.summary == "the database has no tables - run bin/test-setup"
+    end
+
+    test "falls back to the first line when the document has no summary" do
+      System
+      |> expect(:cmd, fn _cmd, _args, _opts ->
+        {"not migrated\n" <> document(%{"findings" => []}), 2}
+      end)
+
+      assert Command.run(Keyword.put(@entry, :skip_exit_code, 2)).summary == "not migrated"
+    end
+
+    test "falls back to the first line when the summary is blank" do
+      System
+      |> expect(:cmd, fn _cmd, _args, _opts ->
+        {"not migrated\n" <> document(%{"summary" => "   "}), 2}
+      end)
+
+      assert Command.run(Keyword.put(@entry, :skip_exit_code, 2)).summary == "not migrated"
+    end
+
+    test "falls back to the first line when parsing is off" do
+      System
+      |> expect(:cmd, fn _cmd, _args, _opts ->
+        {"not migrated\n" <> document(%{"summary" => "ignored"}), 2}
+      end)
+
+      entry = @entry |> Keyword.put(:skip_exit_code, 2) |> Keyword.put(:parse, :none)
+
+      assert Command.run(entry).summary == "not migrated"
     end
 
     test "says something even when the command exited quietly" do

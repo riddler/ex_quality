@@ -182,6 +182,17 @@ Exit code 0 is a pass, anything else is a failure. The command runs with
 `stderr_to_stdout: true`. The JSON finding contract, and the reader/writer
 warning, are in [stages.md](stages.md#custom-stages).
 
+A bare `command` is looked up on the PATH. One containing `/` is a path and is
+expanded before it runs, so a project's own script can be named directly:
+
+```elixir
+[key: :schema, name: "Schema", command: "bin/checks/schema.sh"]
+```
+
+It is relative to `cd` when the entry names one and to the project root
+otherwise, so the entry reads as the shell it looks like: `cd <cd> && <command>
+<args>`. An absolute path is used as it stands.
+
 ### Validation
 
 A malformed entry fails the run at load time and names itself, because a stage

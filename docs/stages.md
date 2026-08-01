@@ -218,10 +218,10 @@ JSON document on stdout:
   "stats": {"finding_count": 2},
   "findings": [
     {
-      "file": "apps/walt_ui/lib/walt_ui/contacts/contact.ex",
+      "file": "apps/web/lib/web/contacts/contact.ex",
       "line": 14,
       "column": null,
-      "app": "walt_ui",
+      "app": "web",
       "severity": "error",
       "check": "unsound",
       "message": "field :email is typed non-nil but the column is nullable"
@@ -246,7 +246,7 @@ test database, a running service, a generated file. Without a way to say "not
 applicable" the stage fails with an error that reads like a code problem.
 
 `skip_exit_code: 2` lets the command exit 2 and have the stage report itself as
-skipped, with the command's own first line as the reason:
+skipped, with its own reason:
 
 ```
 ○ Nullability: skipped (test database is not migrated)
@@ -254,6 +254,17 @@ skipped, with the command's own first line as the reason:
 
 Which keeps the invariant a run depends on: a stage that says nothing would
 read as a stage that passed.
+
+The reason is the document's `summary` when the command wrote one, and the
+first line of output otherwise. **Write the summary.** A first line is hostage
+to whatever the toolchain prints ahead of the command's own output, and `mix`
+is the common offender: it emits `==> app` headers for an umbrella, and a
+build-lock notice when another stage holds the lock. Either turns a reason
+somebody can act on into one they cannot:
+
+```
+○ Nullability: skipped (==> admin)
+```
 
 ## Aliased tasks
 

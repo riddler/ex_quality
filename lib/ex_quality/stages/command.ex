@@ -23,6 +23,17 @@ defmodule ExQuality.Stages.Command do
   `stderr_to_stdout: true`, as every other shelling stage is, so a tool that
   writes its complaint to stderr is not thrown away.
 
+  ## Naming the command
+
+  A bare name is looked up on the PATH. A command containing `/` is a path, and
+  is expanded before it runs, so a project's own script can be named directly:
+
+      command: "bin/checks/schema.sh"
+
+  The path is relative to `cd:` when one is given and to the project root
+  otherwise, so an entry reads as the shell it looks like: `cd <cd> &&
+  <command> <args>`. An absolute path is used as it stands.
+
   ## The finding contract
 
   A command that wants structured findings prints one JSON document on stdout:
@@ -35,7 +46,7 @@ defmodule ExQuality.Stages.Command do
             "file": "lib/contacts/contact.ex",
             "line": 14,
             "column": null,
-            "app": "walt_ui",
+            "app": "web",
             "severity": "error",
             "check": "unsound",
             "message": "field :email is typed non-nil but the column is nullable"
@@ -57,9 +68,14 @@ defmodule ExQuality.Stages.Command do
   migrated test database, a running service, a generated file. Without a way to
   say "not applicable" the stage fails with an error that reads like a code
   problem. `skip_exit_code: 2` lets the command exit 2 and have the stage
-  report `:skipped` with the command's own first line as the reason, which
-  keeps the invariant that a stage saying nothing would read as a stage that
-  passed.
+  report `:skipped` with its own reason, which keeps the invariant that a stage
+  saying nothing would read as a stage that passed.
+
+  The reason is the document's `summary` when the command wrote one, and the
+  first line of output otherwise. Prefer the document: a first line is hostage
+  to whatever the toolchain prints ahead of the command's own output, and `mix`
+  in particular emits `==> app` headers for an umbrella and a build-lock notice
+  when another stage holds the lock.
 
   ## Reader versus writer
 
@@ -89,7 +105,7 @@ defmodule ExQuality.Stages.Command do
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(entry) do
     name = Keyword.fetch!(entry, :name)
-    command = Keyword.fetch!(entry, :command)
+    command = resolve(Keyword.fetch!(entry, :command), Keyword.get(entry, :cd))
     start_time = System.monotonic_time(:millisecond)
 
     outcome = execute(command, Keyword.get(entry, :args, []), cmd_opts(entry))
@@ -99,6 +115,23 @@ defmodule ExQuality.Stages.Command do
     case outcome do
       {:ok, output, exit_code} -> result(entry, name, output, exit_code, duration_ms)
       {:error, reason} -> unrunnable(name, command, reason, duration_ms)
+    end
+  end
+
+  # `System.cmd/3` resolves a bare name on the PATH and otherwise wants an
+  # absolute path: even `./bin/check.sh` raises `:enoent`, because nothing
+  # expands it. A repo's own script is the ordinary case for a custom stage, so
+  # a command carrying a path separator is expanded here rather than left to
+  # be written as `command: "bash", args: ["bin/check.sh"]`.
+  #
+  # Relative to `cd:` when one is given, so an entry reads as the shell it
+  # looks like: `cd <cd> && <command> <args>`. An absolute command is returned
+  # unchanged, and a bare name still goes to the PATH.
+  defp resolve(command, cd) do
+    if String.contains?(command, "/") do
+      Path.expand(command, cd || File.cwd!())
+    else
+      command
     end
   end
 
@@ -139,7 +172,7 @@ defmodule ExQuality.Stages.Command do
         status: :skipped,
         output: output,
         stats: %{},
-        summary: skip_reason(output),
+        summary: skip_reason(entry, output),
         duration_ms: duration_ms
       }
     else
@@ -147,7 +180,23 @@ defmodule ExQuality.Stages.Command do
     end
   end
 
-  defp skip_reason(output) do
+  # A skipped stage's reason is the one line a person reads, so it is taken
+  # from the document's `summary` when the command wrote one. The first line of
+  # output is the fallback, and on its own it is hostage to whatever the
+  # toolchain prints first: `mix` emits `==> app` headers for an umbrella and a
+  # build-lock notice when another stage holds the lock, either of which turns
+  # a useful reason into noise.
+  defp skip_reason(entry, output) do
+    with %{"summary" => summary} <- document(entry, output),
+         true <- is_binary(summary),
+         trimmed when trimmed != "" <- String.trim(summary) do
+      trimmed
+    else
+      _no_summary -> first_line(output)
+    end
+  end
+
+  defp first_line(output) do
     output
     |> String.split("\n")
     |> Enum.map(&String.trim/1)
