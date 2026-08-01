@@ -17,12 +17,17 @@ defmodule ExQuality.Stages.CompileTest do
         Generated my_app app
         """
 
-        case {args, mix_env} do
-          {["compile", "--warnings-as-errors"], "dev"} -> {output, 0}
-          {["compile", "--warnings-as-errors"], "test"} -> {output, 0}
-          {["compile"], "dev"} -> {output, 0}
-          {["compile"], "test"} -> {output, 0}
-          _ -> {"Unexpected command", 1}
+        known_args = [
+          ["compile"],
+          ["compile", "--warnings-as-errors"],
+          ["compile", "--force"],
+          ["compile", "--warnings-as-errors", "--force"]
+        ]
+
+        if mix_env in ["dev", "test"] and args in known_args do
+          {output, 0}
+        else
+          {"Unexpected command", 1}
         end
       end)
 
@@ -63,6 +68,64 @@ defmodule ExQuality.Stages.CompileTest do
       assert result.status == :ok
       refute result.summary =~ "warnings as errors"
       assert result.summary =~ "dev + test compiled"
+    end
+
+    test "omits forced note by default" do
+      result = Compile.run([])
+
+      refute result.summary =~ "forced"
+    end
+
+    test "notes both settings when force and warnings_as_errors are on" do
+      config = [compile: [warnings_as_errors: true, force: true]]
+      result = Compile.run(config)
+
+      assert result.status == :ok
+      assert result.summary == "dev + test compiled (forced, warnings as errors)"
+    end
+
+    test "notes force alone when warnings_as_errors is false" do
+      config = [compile: [warnings_as_errors: false, force: true]]
+      result = Compile.run(config)
+
+      assert result.status == :ok
+      assert result.summary == "dev + test compiled (forced)"
+    end
+
+    test "a forced run that succeeds stays quiet" do
+      config = [compile: [force: true]]
+      result = Compile.run(config)
+
+      # `--force` always prints "Compiling N files (.ex)", which is boring
+      assert result.output == ""
+    end
+  end
+
+  describe "run/1 - force config" do
+    setup do
+      # Only the forced args succeed, so a dropped --force fails the stage
+      System
+      |> stub(:cmd, fn "mix", args, _opts ->
+        case args do
+          ["compile", "--warnings-as-errors", "--force"] -> {"Compiling 15 files (.ex)\n", 0}
+          _ -> {"Unexpected command: #{Enum.join(args, " ")}", 1}
+        end
+      end)
+
+      :ok
+    end
+
+    test "passes --force when force is true" do
+      result = Compile.run(compile: [force: true])
+
+      assert result.status == :ok
+    end
+
+    test "omits --force by default" do
+      result = Compile.run([])
+
+      assert result.status == :error
+      assert result.output =~ "Unexpected command: compile --warnings-as-errors"
     end
   end
 

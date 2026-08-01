@@ -275,7 +275,8 @@ defmodule Mix.Tasks.Quality.Init do
 
       # Compilation options
       # compile: [
-      #   warnings_as_errors: true
+      #   warnings_as_errors: true,
+      #   force: false  # Recompile from scratch, like CI does
       # ],
 
       # Credo static analysis

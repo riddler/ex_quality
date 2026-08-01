@@ -4,7 +4,8 @@ defmodule ExQuality.Stages.Compile do
 
   Runs `mix compile --warnings-as-errors` in parallel for both
   MIX_ENV=dev and MIX_ENV=test. Both compilations must succeed
-  for the stage to pass.
+  for the stage to pass. `compile: [force: true]` adds `--force`,
+  so the run matches the cold build CI does.
 
   - dev environment is needed for credo, dialyzer, doctor, and gettext
   - test environment is needed for running tests
@@ -20,14 +21,13 @@ defmodule ExQuality.Stages.Compile do
   def run(config) do
     start_time = System.monotonic_time(:millisecond)
 
-    warnings_as_errors =
-      config
-      |> Keyword.get(:compile, [])
-      |> Keyword.get(:warnings_as_errors, true)
+    compile_config = Keyword.get(config, :compile, [])
+    warnings_as_errors = Keyword.get(compile_config, :warnings_as_errors, true)
+    force = Keyword.get(compile_config, :force, false)
 
     # Run both compilations in parallel
-    dev_task = Task.async(fn -> compile_env("dev", warnings_as_errors) end)
-    test_task = Task.async(fn -> compile_env("test", warnings_as_errors) end)
+    dev_task = Task.async(fn -> compile_env("dev", warnings_as_errors, force) end)
+    test_task = Task.async(fn -> compile_env("test", warnings_as_errors, force) end)
 
     dev_result = Task.await(dev_task, :infinity)
     test_result = Task.await(test_task, :infinity)
@@ -36,14 +36,12 @@ defmodule ExQuality.Stages.Compile do
 
     case {dev_result, test_result} do
       {{:ok, dev_output}, {:ok, test_output}} ->
-        warnings_note = if warnings_as_errors, do: " (warnings as errors)", else: ""
-
         %{
           name: "Compile",
           status: :ok,
           output: format_success_output(dev_output, test_output),
           stats: %{},
-          summary: "dev + test compiled#{warnings_note}",
+          summary: "dev + test compiled#{notes(force, warnings_as_errors)}",
           duration_ms: duration_ms
         }
 
@@ -69,13 +67,23 @@ defmodule ExQuality.Stages.Compile do
     end
   end
 
-  defp compile_env(env, warnings_as_errors) do
+  defp notes(force, warnings_as_errors) do
+    enabled =
+      [{force, "forced"}, {warnings_as_errors, "warnings as errors"}]
+      |> Enum.filter(fn {on?, _note} -> on? end)
+      |> Enum.map(fn {_on?, note} -> note end)
+
+    case enabled do
+      [] -> ""
+      notes -> " (#{Enum.join(notes, ", ")})"
+    end
+  end
+
+  defp compile_env(env, warnings_as_errors, force) do
     args =
-      if warnings_as_errors do
-        ["compile", "--warnings-as-errors"]
-      else
-        ["compile"]
-      end
+      ["compile"] ++
+        if(warnings_as_errors, do: ["--warnings-as-errors"], else: []) ++
+        if(force, do: ["--force"], else: [])
 
     {output, exit_code} =
       System.cmd("mix", args,

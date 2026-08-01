@@ -42,6 +42,7 @@ defmodule ExQuality.Config do
 
   Stage-specific options:
   - `compile.warnings_as_errors` - Treat warnings as errors (default: true)
+  - `compile.force` - Recompile from scratch (default: false)
   - `credo.strict` - Use strict mode (default: true)
   - `credo.all` - Check all files (default: false)
   - `credo.configs` - Names of the `.credo.exs` configs to run, in order
@@ -68,7 +69,8 @@ defmodule ExQuality.Config do
 
     # Stage-specific options
     compile: [
-      warnings_as_errors: true
+      warnings_as_errors: true,
+      force: false
     ],
     credo: [
       enabled: :auto,

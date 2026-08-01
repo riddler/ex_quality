@@ -63,7 +63,8 @@ A keyword list at the project root. Every key is optional.
   quick: false,
 
   compile: [
-    warnings_as_errors: true
+    warnings_as_errors: true,
+    force: false
   ],
 
   credo: [
