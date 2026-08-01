@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ExQuality.Finding`, a structured representation of a single actionable problem (file, line, column, severity, check, message, and the raw tool output it came from)
+- Stage results may carry `findings`; `ExQuality.Stage.findings/1` reads them
+- Credo parses its issues into findings, and failure output renders them grouped by file and sorted by line
+- Stages without a parser, and output that does not parse, still print in full: findings never replace output they did not account for
+- Every stage that is considered and not run now prints a line saying so, with the reason (`○ Dialyzer: skipped (--quick)`, `○ Doctor: skipped (:doctor not installed)`, `○ Credo: skipped (disabled in .quality.exs)`)
+- `ExQuality.Config.skip_reason/2` and `ExQuality.Stage.skipped/2`
+- `ExQuality.Umbrella`, which answers which child apps exist, where they live, and what they declare
+- Findings carry the umbrella app their file belongs to, and rendered output is grouped by app
+- Test failures name the apps they came from (`3 of 4,180 failed (web: 3)`)
+- `mix quality --report PATH` writes a JSON report of the run, and `--format json` puts it on stdout with the human output on stderr. A caller can route on which stage failed and on its findings instead of scraping the console or re-running the tool
+- `ExQuality.Report`, which builds that report from the same results the human output is rendered from
+- A Sobelow security stage, auto-enabled on `:sobelow`, with `--skip-sobelow` to turn it off. Findings at or above the project's `exit:` threshold block the run and are rendered; the rest are reported as a count (`2 blocking findings (1 high, 1 medium), 3 informational not shown`) and shown under `--verbose` or `sobelow: [show_informational: true]`
+- The Sobelow stage runs once per Phoenix child app in an umbrella, where `mix sobelow` alone finds nothing to scan, and tags each finding with its app
+- `ExQuality.Umbrella.app_deps/0`, the child dependencies keyed by app
+- Coverage without ExCoveralls: a project that sets `test_coverage: [summary: [threshold: N]]` is measured with Elixir's own `mix test --cover`. In an umbrella the run exports per app and aggregates with `mix test.coverage`, so a module exercised by another app's tests no longer reads as 0%
+- A failing coverage check reports the modules under the threshold as findings, with their source files, instead of the whole per-module table
+- `test: [coverage: true | false]` in `.quality.exs`, to measure coverage in a project that states no threshold, or to never measure it
+- `:native_coverage` in `ExQuality.Tools.detect/0`, true when `:excoveralls` is absent
+- `mix quality.plt`, which builds the Dialyzer PLT outside a run so a container image or CI job can cache it instead of paying for it inside a check
+- A run that has to build the PLT says so while it happens (`⋯ Dialyzer: building PLT (this is a one-time cost)`), instead of a multi-minute wait behind a stage that prints one line at the end, and reports it afterwards (`No warnings (PLT built this run)`, `stats.plt_built`)
+- `ExQuality.Plt`, which recognises PLT work in dialyxir's output
+- `ExQuality.OutputCollector.new/1` takes an `:on_line` handler, called with each line of a command's output as it arrives
+
+- `ExQuality.Json`, which reads a JSON document out of output a compiler or a tool also wrote to
+
+- Guides under `docs/`, shipped with the package and published with the docs: configuration, stages, reports, umbrella projects, and CI and pre-commit
+- `ExQuality.Finding.relative_path/1`, which normalises a path a tool reported into one relative to the run's root
+
+### Changed
+
+- The README leads with the output contract - a passing stage costs one line, every stage the run considered is reported with its reason, a failure renders as findings with `file:line` - instead of a feature list, and the reference detail it carried moves into `docs/`. The comparison table is gone: it made unverifiable claims about other tools that would rot
+- `usage-rules.md` is organised around what an agent has to decide: which command to run, what each line shape means, what to do about each stage's findings, and the fixes that are never acceptable. The anti-fixes are collected in one place rather than scattered, and cover skipping a failing test, adding a `--skip-*` flag and weakening a check, not just coverage and Sobelow thresholds
+- The package description names the tools, the output and the audience, so it is findable by what someone would search for on Hex
+- A passing run and `mix quality.init` end with `✓` rather than `✅`, matching the stage lines
+- `:doctor` moves to `~> 0.23`, which requires `decimal ~> 3.1` and clears GHSA-rhv4-8758-jx7v, an unbounded exponent in `Decimal.new` that enables unauthenticated denial of service. `:jason` moves to 1.4.5, the first release whose optional `:decimal` requirement admits 3.x
+- Dialyzer runs with `--format short --format dialyxir`. Each warning's one-line form becomes a finding naming the warning (`no_return`, `pattern_match`), and the warning count is the number of them instead of a count of lines shaped like `file.ex:12:`, which also counted PLT chatter and any explanation that named a second file. dialyxir's long explanation of each warning is still printed, so it stays in the stage's output and in the JSON report
+- The security audit runs `mix deps.audit --format json`. Each vulnerability becomes a finding against the lockfile, naming the advisory, the version in use and the version that fixes it, instead of being counted by searching the human output for `Advisory:` and `severity: high`. Unused dependencies become findings too. `stats.high_severity` and its siblings are replaced by `stats.vulnerabilities_by_severity`
+- Credo runs with `--format json`. Findings name the check that produced them (`Credo.Check.Readability.ModuleDoc`) instead of its category, the issue count is the number of issues rather than a summary-line parse, and an issue that credo reported is never dropped for having an unfamiliar line shape. A stage summary now reads `5 issues (2 readability, 3 design)`
+
+### Fixed
+
+- Findings report a path relative to the run's root. mix_audit reports an absolute lockfile, so a vulnerability rendered as `/Users/someone/code/app/mix.lock`: longer to read, not what a reader would type, different between a laptop and CI for the same problem, and comparing as a different finding. It is the same base `ExQuality.Umbrella.app_for_path/2` matches, so a finding's `file` and its `app` can no longer disagree about where it is. A path outside the project root stays absolute
+- A run that stops at a compile error now reports the analysis stages it never reached as skipped, instead of saying nothing about them
+
+- A disabled or uninstalled stage no longer vanishes from the output, where it read as a stage that passed
+- Tool auto-detection reads every umbrella child app's dependencies, not just the root's. An umbrella root usually declares no deps, so credo, dialyzer and friends were reported as not installed and a run that checked almost nothing passed
+- Test statistics sum every app's summary line instead of reporting the first app's numbers as the whole suite's
+- Coverage reads every `[TOTAL]` line; when apps are measured separately the lowest leads, with the per-app numbers alongside it
+- The coverage threshold is read from `coveralls.json`'s `coverage_options`, where excoveralls actually writes `minimum_coverage`. Only the top level was looked at, so a project configuring it the standard way had no threshold enforced
+- An integer threshold (`minimum_coverage: 70`) no longer crashes the summary
+- The Format stage reports a failing `mix format` instead of discarding its exit code. A file with a syntax error names no `.ex` file to count, so the first line of the run was a green tick on a broken file
+- The Format stage reports a project with no `.formatter.exs` as skipped, rather than failing the run over a config file it never had
+- `.quality.exs` is read from the project root instead of the working directory, and an umbrella child with no file of its own now reads the umbrella root's
+
 ## [0.6.0]
 
 ### Fixed

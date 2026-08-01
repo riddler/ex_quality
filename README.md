@@ -1,406 +1,189 @@
 # ExQuality
 
-A parallel code quality checker for Elixir projects that runs format, compile, credo, dialyzer, dependency checks, and tests concurrently with actionable feedback.
+Runs an Elixir project's quality tools in parallel and reports the run as a
+fixed set of stages, each with a status, a one-line summary, and findings that
+carry a `file:line`.
 
-**Perfect for iterative development**: Use `mix quality --quick` during active coding, then `mix quality` for full verification before committing.
+```
+mix quality
+```
 
-## Features
+## The output is the point
 
-- **🚀 Fast iteration**: `--quick` mode skips slow checks (dialyzer, coverage) for rapid feedback
-- **⚡ Parallel execution**: All checks run concurrently, maximizing CPU utilization
-- **🔧 Auto-fix first**: Automatically fixes formatting before running analysis
-- **📊 Streaming output**: See results as each stage completes, not after everything finishes
-- **🎯 Actionable feedback**: Full tool output with file:line references for easy fixing
-- **🤖 Auto-detection**: Automatically enables checks based on installed dependencies
-- **⚙️ Configurable**: Customize via `.quality.exs` or CLI flags
-- **🧠 LLM-friendly**: Includes `usage-rules.md` for AI coding assistants
+Every quality tool prints in its own format, at its own length, and says
+nothing when it did not run. Reading a run means reading several walls of
+text and inferring what is missing from them.
 
-## Quick Start
+ExQuality normalises that. One run, one stream, one shape per stage:
+
+```
+Running quality checks...
+
+✓ Format: No changes needed (458ms)
+✓ Compile: dev + test compiled (warnings as errors) (325ms)
+
+Running analysis stages in parallel...
+
+○ Dialyzer: skipped (--quick)
+○ Gettext: skipped (:gettext not installed)
+○ Sobelow: skipped (:sobelow not installed)
+✓ Doctor: Passed (519ms)
+✓ Credo: No issues (775ms)
+✗ Dependencies: 1 vulnerability (1 moderate) (2.5s)
+✓ Tests: 345 of 345 passed (4.1s)
+
+────────────────────────────────────────────────────────────
+Dependencies - FAILED
+────────────────────────────────────────────────────────────
+mix.lock
+  -  [error] decimal 2.3.0: Unbounded exponent in `Decimal.new` enables
+     unauthenticated DoS (moderate severity, patched in 3.0.0) (GHSA-rhv4-8758-jx7v)
+```
+
+Three properties follow from that, and they are what the tool is for:
+
+- **A passing stage costs one line.** Detail is printed for failures only. A
+  green run is nine lines, not nine tool reports.
+- **Every stage the run considered is reported**, skipped ones included, with
+  the reason. Absence is never something a reader has to interpret, and a stage
+  that silently did not run cannot read as a stage that passed.
+- **A failure is rendered as findings**: each one a `file:line`, a message and
+  the rule that produced it, grouped by file. Anything a parser could not
+  account for is printed verbatim rather than dropped.
+
+Do not pipe a run through `head`, `tail` or `grep`. The output is already the
+minimum needed to act, and truncating it removes findings, not noise. If you
+want to route on a result rather than read it, ask for
+[a JSON report](#machine-readable-reports).
+
+## Installation
 
 ```elixir
-# Add to mix.exs
 def deps do
-  [
-    {:ex_quality, "~> 0.6", only: :dev, runtime: false}
-  ]
+  [{:ex_quality, "~> 0.6", only: :dev, runtime: false}]
 end
 ```
 
+Then set up the tools you want to run:
+
 ```bash
-# Install dependencies
 mix deps.get
-
-# Set up quality tools (interactive)
-mix quality.init
-
-# Or use defaults without prompts
+mix quality.init              # interactive; pre-selects credo, dialyzer, excoveralls
 mix quality.init --skip-prompts
 ```
 
-This will:
-1. Detect which tools are already installed
-2. Prompt you to select additional tools (credo, dialyzer, excoveralls recommended)
-3. Add dependencies to mix.exs
-4. Run `mix deps.get`
-5. Set up tool configurations (.credo.exs, coveralls.json, etc.)
-6. Create .quality.exs for customization
+`mix quality.init` detects what is already installed, adds the rest to
+`mix.exs`, runs `mix deps.get`, writes each tool's config, and creates a
+`.quality.exs`. Nothing about it is required: ExQuality runs whatever the
+project already depends on.
 
-Then run quality checks:
+## Two modes
 
 ```bash
-# During development - fast feedback
-mix quality --quick
-
-# Before committing - full verification
-mix quality
+mix quality --quick    # while coding
+mix quality            # before committing, and in CI
 ```
 
-## Workflow
+Quick mode skips Dialyzer and coverage enforcement, the two slow stages. Tests
+still run, and everything else is unchanged. Full mode runs every enabled
+stage.
 
-### Iterative Development (Fast)
+## Stages
 
-When you're actively coding and want quick feedback:
+A stage is enabled when the project depends on the tool behind it. There is
+nothing to switch on.
+
+| Stage | Runs | Enabled when |
+|---|---|---|
+| Format | `mix format` | a `.formatter.exs` exists |
+| Compile | `mix compile --warnings-as-errors`, dev and test | always |
+| Credo | `mix credo --format json` | `:credo` |
+| Dialyzer | `mix dialyzer --format short --format dialyxir` | `:dialyxir` |
+| Dependencies | `mix deps.unlock --check-unused`, `mix deps.audit --format json` | always; audit needs `:mix_audit` |
+| Doctor | `mix doctor` | `:doctor` |
+| Gettext | `mix gettext.extract --merge`, then reads the `.po` files | `:gettext` |
+| Sobelow | `mix sobelow` | `:sobelow` |
+| Tests | `mix test` | always |
+| Coverage | `mix coveralls`, or `mix test --cover` | `:excoveralls`, or a threshold in `test_coverage` |
+
+Format runs first and fixes what it can. Compile runs next and gates the rest:
+there is no point analysing code that does not build. Everything after that
+runs in parallel and prints as it finishes, so a 0.5s stage is not held behind
+a 30s one.
+
+Umbrella projects are first-class: tools are detected across every child app,
+findings are tagged with the app they came from, and coverage is aggregated
+across the suite. See [docs/umbrella.md](docs/umbrella.md).
+
+## Machine-readable reports
+
+The exit code says a run failed, not what failed. A script that wants to route
+on the result - hand the Credo findings to one fixer, the test failures to
+another - asks for a report instead of scraping the console:
 
 ```bash
-mix quality --quick
+mix quality --report .quality.json   # human output on stdout, report to a file
+mix quality --format json            # report on stdout, human output on stderr
 ```
 
-**Quick mode skips:**
-- ❌ Dialyzer (type checking is slow)
-- ❌ Coverage enforcement (tests run, but coverage % not checked)
-
-**Quick mode runs:**
-- ✅ Format (auto-fixes)
-- ✅ Compilation (dev + test)
-- ✅ Credo (static analysis)
-- ✅ Dependencies (unused deps + security audit)
-- ✅ Tests (must pass)
-- ✅ Doctor (if installed)
-- ✅ Gettext (if installed)
-
-**Use this when**: Making frequent changes, implementing features, fixing bugs.
-
-### Full Verification (Complete)
-
-Before committing, pushing, or opening a PR:
-
-```bash
-mix quality
-```
-
-**Full mode runs everything:**
-- ✅ Format
-- ✅ Compilation
-- ✅ Credo
-- ✅ Dialyzer (comprehensive type checking)
-- ✅ Dependencies (unused deps + security audit)
-- ✅ Tests with coverage (enforces threshold)
-- ✅ Doctor
-- ✅ Gettext
-
-**Use this when**: Ready to commit, opening PRs, in CI/CD.
-
-## Execution Phases
-
-ExQuality runs in three phases:
-
-### Phase 1: Auto-fix
-```
-✓ Format: Formatted 3 files (0.2s)
-```
-Automatically fixes code formatting with `mix format`.
-
-### Phase 2: Compilation (Blocking Gate)
-```
-✓ Compile: dev + test compiled (warnings as errors) (2.1s)
-```
-Compiles both dev and test environments in parallel. Must pass before analysis.
-
-### Phase 3: Parallel Analysis (Streaming)
-```
-✓ Doctor: 92% documented (0.4s)              ← prints at 0.4s
-✓ Credo: No issues (1.8s)                    ← prints at 1.8s
-✓ Tests: 248 passed, 87.3% coverage (5.2s)   ← prints at 5.2s
-✓ Dialyzer: No warnings (32.1s)              ← prints at 32.1s
-```
-All checks run concurrently. Results stream as each completes.
-
-## CLI Options
-
-```bash
-# Quick mode for iterative development
-mix quality --quick
-
-# Skip specific stages
-mix quality --skip-dialyzer
-mix quality --skip-credo
-mix quality --skip-doctor
-mix quality --skip-gettext
-mix quality --skip-dependencies
-
-# Combine flags
-mix quality --quick --skip-credo
-
-# Pass options to mix test/coveralls (after --)
-mix quality -- --only integration
-mix quality --quick -- --include slow --seed 0
-```
-
-## Auto-Detection
-
-ExQuality automatically enables stages based on installed dependencies:
-
-| Stage | Requires | Auto-enabled? |
-|-------|----------|---------------|
-| Format | (none) | Always |
-| Compile | (none) | Always |
-| Credo | `:credo` | If installed |
-| Dialyzer | `:dialyxir` | If installed |
-| Dependencies | (none) / `:mix_audit` | Always (audit if installed) |
-| Doctor | `:doctor` | If installed |
-| Gettext | `:gettext` | If installed |
-| Tests | (none) | Always |
-| Coverage | `:excoveralls` | If installed |
-
-**Example**: If you have credo and dialyxir in deps, ExQuality will run both automatically.
-
-## Configuration
-
-Create `.quality.exs` in your project root to customize behavior:
-
-```elixir
-[
-  # Override auto-detection: force disable dialyzer
-  dialyzer: [enabled: false],
-
-  # Credo options
-  credo: [
-    strict: true,  # Use --strict mode (default: true)
-    all: false     # Use --all flag (default: false)
-  ],
-
-  # Doctor options
-  doctor: [
-    summary_only: true  # Show only summary (default: false)
-  ],
-
-  # Dependencies options
-  dependencies: [
-    check_unused: true,  # Check for unused deps (default: true)
-    audit: true          # Run security audit if mix_audit installed (default: :auto)
-  ],
-
-  # Test options - pass extra args to mix test/coveralls
-  test: [
-    args: ["--only", "integration"]  # e.g., --only, --include, --exclude, --seed
+```json
+{
+  "status": "error",
+  "version": "0.6.0",
+  "duration_ms": 5014,
+  "stages": [
+    {
+      "name": "Dialyzer",
+      "status": "skipped",
+      "summary": "--quick",
+      "stats": {},
+      "findings": [],
+      "duration_ms": 0
+    },
+    {
+      "name": "Dependencies",
+      "status": "error",
+      "summary": "1 vulnerability (1 moderate)",
+      "stats": {"vulnerabilities": 1, "vulnerabilities_by_severity": {"moderate": 1}},
+      "findings": [
+        {
+          "file": "mix.lock", "line": null, "column": null,
+          "app": null, "severity": "error",
+          "check": "GHSA-rhv4-8758-jx7v",
+          "message": "decimal 2.3.0: Unbounded exponent in `Decimal.new` enables unauthenticated DoS (moderate severity, patched in 3.0.0)"
+        }
+      ],
+      "duration_ms": 2400
+    }
   ]
-]
+}
 ```
 
-### Configuration Precedence
+Every stage carries the same keys whatever its status, so a consumer reads one
+field rather than branching. The report is built from the same results the
+human output is rendered from, so the two can never disagree. Full schema in
+[docs/reports.md](docs/reports.md).
 
-Configuration is merged in this order (later wins):
+## Working with a coding agent
 
-1. **Defaults** - Sensible built-in defaults
-2. **Auto-detection** - Based on installed deps
-3. **`.quality.exs`** - Project-specific config
-4. **CLI flags** - Runtime overrides (highest priority)
+ExQuality ships a [`usage-rules.md`](usage-rules.md) for AI coding assistants,
+readable by [usage_rules](https://hex.pm/packages/usage_rules). It tells an
+agent which mode to run, how to read a failure, not to truncate the output, and
+which fixes are never acceptable - lowering a coverage threshold, adding a
+`.sobelow-conf` ignore - because a tool silencing its own findings is a
+regression dressed as a pass.
 
-**Example**: If `.quality.exs` disables dialyzer, but you run `mix quality` (no flags), dialyzer stays disabled. However, the auto-detection still marks it as "available" internally.
+The properties above are what make an agent loop cheap: a passing run costs an
+agent nine lines of context instead of several tool reports, and a failing one
+gives it `file:line` targets without a second command.
 
-### Coverage Threshold
+## Documentation
 
-Coverage threshold is **NOT** configured in ExQuality. It reads from your existing excoveralls configuration:
-
-- `coveralls.json` → `minimum_coverage` or `coverage_threshold`
-- `mix.exs` → `test_coverage: [minimum_coverage: 80.0]`
-
-This ensures a **single source of truth** for coverage requirements.
-
-### Test Options
-
-Pass extra arguments to `mix test` or `mix coveralls` using either method:
-
-**Via CLI** (after `--` separator):
-```bash
-mix quality -- --only integration
-mix quality --quick -- --include slow --seed 0
-```
-
-**Via `.quality.exs`**:
-```elixir
-[
-  test: [
-    args: ["--only", "integration"]
-  ]
-]
-```
-
-CLI args override config file args (no merge). This is useful for:
-- Running only specific test tags: `--only integration`, `--exclude slow`
-- Debugging with a specific seed: `--seed 12345`
-- Including normally-excluded tests: `--include pending`
-
-## Actionable Output
-
-When checks fail, ExQuality shows the complete tool output with file:line references:
-
-```bash
-✗ Credo: 5 issue(s) (1 refactoring, 2 readability, 2 design) (0.4s)
-
-────────────────────────────────────────────────────────────
-Credo - FAILED
-────────────────────────────────────────────────────────────
-┃ [D] ↘ Nested modules could be aliased at the top of the invoking module.
-┃       lib/mix/tasks/quality.ex:96:22 #(Mix.Tasks.Quality.run)
-┃
-┃ [R] ↗ Predicate function names should not start with 'is'...
-┃       lib/ex_quality/stages/dialyzer.ex:92:8 #(ExQuality.Stages.Dialyzer.is_debug_info_error?)
-```
-
-**Why this matters:**
-- Humans can click file:line in their editor
-- LLMs can see exactly what needs fixing
-- No need to run individual tools to get details
-
-## Recommended Dependencies
-
-For the best experience, add these to your `mix.exs`:
-
-```elixir
-def deps do
-  [
-    # Recommended quality tools
-    {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-    {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-    {:excoveralls, "~> 0.18", only: :test},
-    {:doctor, "~> 0.21", only: :dev, runtime: false},
-    {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
-
-    # If you use translations
-    {:gettext, "~> 0.24"},
-
-    # Quality checker
-    {:ex_quality, "~> 0.6", only: :dev, runtime: false}
-  ]
-end
-```
-
-## Integration
-
-### In CI/CD
-
-Run full quality checks in your CI pipeline:
-
-```yaml
-# GitHub Actions
-- name: Run quality checks
-  run: mix quality
-```
-
-**Note**: Dialyzer requires a PLT (Persistent Lookup Table). You may want to cache it:
-
-```yaml
-- name: Restore PLT cache
-  uses: actions/cache@v3
-  with:
-    path: priv/plts
-    key: ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}
-```
-
-### Pre-commit Hook
-
-Add to `.git/hooks/pre-commit`:
-
-```bash
-#!/bin/sh
-mix quality --quick
-```
-
-This gives you fast feedback before committing.
-
-### In Your Development Workflow
-
-**During feature development:**
-```bash
-# Make changes
-vim lib/my_app/feature.ex
-
-# Quick check (fast)
-mix quality --quick
-
-# Fix issues, repeat
-```
-
-**Before committing:**
-```bash
-# Full verification
-mix quality
-
-# If it passes, commit
-git add .
-git commit -m "Add feature"
-```
-
-## Comparison with Alternatives
-
-| Feature | ExQuality | ex_check | al_check |
-|---------|-----------|----------|----------|
-| Parallel execution | ✅ | ✅ | ✅ |
-| Streaming output | ✅ | ❌ | ❌ |
-| Auto-fix first | ✅ | ✅ | ✅ |
-| Auto-detect tools | ✅ | ✅ | ❌ |
-| Quick mode | ✅ | ❌ | ✅ |
-| LLM-friendly | ✅ | ❌ | ❌ |
-| Config file | .quality.exs | .check.exs | alcheck.toml |
-| Actionable output | ✅ Full tool output | ✅ | ✅ |
-
-**ExQuality's differentiators:**
-1. **Quick mode** - Fast iteration during development
-2. **Streaming output** - See results as each check completes
-3. **Auto-fix first** - Format code before analysis
-4. **LLM integration** - Includes `usage-rules.md` for AI assistants
-
-## Troubleshooting
-
-### "Dialyzer is too slow"
-
-Use quick mode during development:
-```bash
-mix quality --quick
-```
-
-Or disable it permanently in `.quality.exs`:
-```elixir
-[dialyzer: [enabled: false]]
-```
-
-### "Credo is too strict"
-
-Adjust strictness in `.quality.exs`:
-```elixir
-[credo: [strict: false]]
-```
-
-Or create `.credo.exs` to configure credo directly.
-
-### "I don't have doctor/gettext"
-
-ExQuality auto-detects and skips them. No configuration needed.
-
-### "Tests are failing"
-
-ExQuality shows the full test output with file:line references. Look for the failure details in the output.
-
-## Philosophy
-
-**ExQuality is designed for rapid, iterative development with confidence.**
-
-1. **Fast feedback loop**: `--quick` gives you sub-second feedback on most changes
-2. **Comprehensive verification**: Full mode ensures everything is correct
-3. **Actionable output**: See exactly what needs fixing, with file:line references
-4. **Zero configuration**: Works out of the box with sensible defaults
-5. **Progressive enhancement**: Add tools as you need them
+- [Configuration](docs/configuration.md) - `.quality.exs`, CLI flags, precedence
+- [Stages](docs/stages.md) - what each stage runs, reports, and how thresholds are sourced
+- [Reports](docs/reports.md) - the JSON report schema
+- [Umbrella projects](docs/umbrella.md) - detection, findings, coverage, Sobelow
+- [CI and pre-commit](docs/ci.md) - pipelines, PLT caching, hooks
 
 ## License
 
@@ -408,4 +191,5 @@ MIT
 
 ## Contributing
 
-Issues and pull requests welcome at [https://github.com/riddler/ex_quality](https://github.com/riddler/ex_quality)
+Issues and pull requests welcome at
+[github.com/riddler/ex_quality](https://github.com/riddler/ex_quality).

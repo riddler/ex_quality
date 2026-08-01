@@ -69,6 +69,25 @@ defmodule ExQuality.PrinterTest do
       end)
     end
 
+    test "prints why a stage was skipped" do
+      result = ExQuality.Stage.skipped("Dialyzer", "--quick")
+
+      assert capture_printed(result) =~ "○ Dialyzer: skipped (--quick)"
+    end
+
+    test "prints a skipped stage with no reason" do
+      result = %{
+        name: "Dialyzer",
+        status: :skipped,
+        summary: "",
+        duration_ms: 0,
+        output: "",
+        stats: %{}
+      }
+
+      assert capture_printed(result) =~ "○ Dialyzer: skipped"
+    end
+
     test "handles various duration values" do
       capture_io(fn ->
         # Test milliseconds (< 1000ms)
@@ -268,5 +287,15 @@ defmodule ExQuality.PrinterTest do
         assert Enum.all?(task_results, &(&1 == :ok))
       end)
     end
+  end
+
+  # The printer agent writes to the group leader it was started with, so it has
+  # to be restarted inside the capture for its output to be seen.
+  defp capture_printed(result) do
+    capture_io(fn ->
+      Printer.stop()
+      {:ok, _pid} = Printer.start_link()
+      assert :ok = Printer.print_result(result)
+    end)
   end
 end

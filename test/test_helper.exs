@@ -1,6 +1,7 @@
 # Configure Mimic for mocking System.cmd/3 in unit tests
 Mimic.copy(System)
 Mimic.copy(ExQuality.Tools)
+Mimic.copy(ExQuality.Umbrella)
 
 # Start ExUnit
 # Note: Integration tests use fixture projects in fixtures/ to avoid infinite recursion.
