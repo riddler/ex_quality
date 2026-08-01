@@ -21,6 +21,7 @@ defmodule ExQuality.Stages.Credo do
   Note: Credo does not support auto-fix. All issues must be manually resolved.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.Json
   alias ExQuality.Umbrella
@@ -43,6 +44,14 @@ defmodule ExQuality.Stages.Credo do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
+    if Aliases.shadowing?("credo") do
+      Aliases.shadowed("Credo", "credo")
+    else
+      check(config)
+    end
+  end
+
+  defp check(config) do
     start_time = System.monotonic_time(:millisecond)
 
     credo_config = Keyword.get(config, :credo, [])

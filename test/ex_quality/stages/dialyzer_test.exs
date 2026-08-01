@@ -1,5 +1,7 @@
 defmodule ExQuality.Stages.DialyzerTest do
-  use ExUnit.Case, async: true
+  # Not async: attributing an app-relative path to an app is done by looking
+  # for the file, so those tests run from a tree of their own.
+  use ExUnit.Case, async: false
   use Mimic
 
   import ExUnit.CaptureIO
@@ -209,6 +211,78 @@ defmodule ExQuality.Stages.DialyzerTest do
     end
   end
 
+  describe "run/1 - umbrella paths relative to a child app" do
+    # dialyxir running once from an umbrella root prints each path relative to
+    # the app it found the file in, with no header saying which app that was.
+    setup do
+      stub_dialyzer(
+        """
+        lib/core/integrations.ex:65:29:unknown_type Unknown type: Core.User.t/0.
+        lib/application.ex:1:no_return Function start/2 has no local return.
+        lib/nowhere.ex:3:unknown_type Unknown type: Gone.t/0.
+        """,
+        1
+      )
+
+      :ok
+    end
+
+    test "resolves the path against the app that has the file, and names it" do
+      files = ["apps/core/lib/core/integrations.ex", "apps/web/lib/application.ex"]
+
+      in_project(files, fn ->
+        assert [integrations, application, nowhere] = ExQuality.Stage.findings(Dialyzer.run([]))
+
+        assert integrations.app == :core
+        assert integrations.file == "apps/core/lib/core/integrations.ex"
+
+        assert application.app == :web
+        assert application.file == "apps/web/lib/application.ex"
+
+        # No app has it, so nothing is invented: the path is left as dialyxir
+        # reported it.
+        assert nowhere.app == nil
+        assert nowhere.file == "lib/nowhere.ex"
+      end)
+    end
+
+    test "does not guess when two apps have the same relative path" do
+      files = ["apps/core/lib/application.ex", "apps/web/lib/application.ex"]
+
+      in_project(files, fn ->
+        findings = ExQuality.Stage.findings(Dialyzer.run([]))
+        application = Enum.find(findings, &(&1.file =~ "application.ex"))
+
+        assert application.app == nil
+        assert application.file == "lib/application.ex"
+      end)
+    end
+  end
+
+  # Runs `fun` from a tree that is an umbrella containing exactly these files.
+  defp in_project(files, fun) do
+    root =
+      Path.join(System.tmp_dir!(), "ex_quality-dialyzer-#{System.unique_integer([:positive])}")
+
+    Enum.each(files, fn path ->
+      full = Path.join(root, path)
+      File.mkdir_p!(Path.dirname(full))
+      File.write!(full, "")
+    end)
+
+    stub(ExQuality.Umbrella, :apps_paths, fn -> %{core: "apps/core", web: "apps/web"} end)
+
+    File.mkdir_p!(root)
+    cwd = File.cwd!()
+
+    try do
+      File.cd!(root, fun)
+    after
+      File.cd!(cwd)
+      File.rm_rf!(root)
+    end
+  end
+
   describe "run/1 - single warning" do
     setup do
       stub_dialyzer(
@@ -254,6 +328,36 @@ defmodule ExQuality.Stages.DialyzerTest do
       assert result.status == :ok
       assert result.stats.warning_count == 0
       assert result.summary == "No warnings (some files skipped)"
+    end
+  end
+
+  describe "run/1 - analysis that never ran" do
+    setup do
+      # What dialyxir prints when the beams are rewritten under it: the same
+      # debug_info error as a genuine skip, but no tally, because it stopped
+      # before it had one.
+      stub_dialyzer(
+        """
+        Finding suitable PLTs
+        Proceeding with analysis...
+        Could not get Core Erlang code for: /path/to/build/dev/lib/web/ebin/Elixir.Web.beam
+        Recompile with +debug_info or analyze the .erl file instead
+        """,
+        1
+      )
+
+      :ok
+    end
+
+    test "fails rather than passing on an analysis that produced no tally" do
+      result = Dialyzer.run([])
+
+      assert result.status == :error
+      assert result.summary == "Analysis did not complete (build changed under it? see output)"
+    end
+
+    test "carries the tool's output verbatim" do
+      assert Dialyzer.run([]).output =~ "Could not get Core Erlang code"
     end
   end
 

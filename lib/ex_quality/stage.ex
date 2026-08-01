@@ -26,6 +26,20 @@ defmodule ExQuality.Stage do
 
   alias ExQuality.Finding
 
+  @typedoc """
+  Whether a stage reads the build or writes to it.
+
+  The analysis phase runs its stages concurrently, which is only safe while
+  every one of them is a reader. A stage that recompiles the project or
+  rewrites files under `_build` invalidates the beams the others are part-way
+  through reading, and the reader that notices reports a failure that has
+  nothing to do with the code. Writers are run on their own, before the
+  readers, for the same reason compilation is a serialized gate.
+
+  A stage that does not say is a `:reader`.
+  """
+  @type kind :: :reader | :writer
+
   @type stats :: %{
           optional(:test_count) => non_neg_integer(),
           optional(:passed_count) => non_neg_integer(),
@@ -41,6 +55,9 @@ defmodule ExQuality.Stage do
           optional(:vulnerabilities) => non_neg_integer(),
           optional(:vulnerabilities_by_severity) => [{String.t(), non_neg_integer()}],
           optional(:files_formatted) => non_neg_integer(),
+          optional(:missing_translations) => non_neg_integer(),
+          optional(:fuzzy_translations) => non_neg_integer(),
+          optional(:file_count) => non_neg_integer(),
           optional(:finding_count) => non_neg_integer(),
           optional(:blocking_count) => non_neg_integer(),
           optional(:informational_count) => non_neg_integer(),
@@ -65,6 +82,30 @@ defmodule ExQuality.Stage do
   """
   @spec findings(map()) :: [Finding.t()]
   def findings(result), do: Map.get(result, :findings, [])
+
+  @doc """
+  Returns whether a stage module reads the build or writes to it.
+
+  A module says so by exporting `stage_kind/1`, which is given the run's
+  config because a stage can be a writer only in some configurations. A module
+  that does not export it is a `:reader`, so classifying a stage is one
+  function on the stage that has something to declare rather than a line on
+  every stage that does not.
+
+      iex> ExQuality.Stage.kind(ExQuality.Stages.Credo, [])
+      :reader
+
+      iex> ExQuality.Stage.kind(ExQuality.Stages.Gettext, gettext: [extract: true])
+      :writer
+  """
+  @spec kind(module(), keyword()) :: kind()
+  def kind(module, config) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :stage_kind, 1) do
+      module.stage_kind(config)
+    else
+      :reader
+    end
+  end
 
   @doc """
   Builds a `:skipped` result for a stage that was considered and not run.

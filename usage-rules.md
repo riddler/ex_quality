@@ -74,11 +74,27 @@ underlying tool to get detail that is already on screen.
 | Dependencies | an unused dep, or an advisory with the version that fixes it | `mix deps.unlock <pkg>` for unused; upgrading to the patched version for an advisory |
 | Doctor | documentation coverage below the project's threshold | writing the missing `@moduledoc`/`@doc` |
 | Gettext | missing or fuzzy translations | translating them, or resolving the fuzzy entries |
+| any stage | `mix <task> is aliased in mix.exs` | renaming the alias, see below |
 | Sobelow | a security finding at or above the blocking threshold | fixing it at `file:line` |
 | Tests | a test failure, or modules under the coverage threshold | fixing the code, or writing tests for the named modules |
 
 Coverage failures name the modules that are under the threshold. Write tests
 for those modules. Do not test unrelated code to raise the average.
+
+## Mix aliases
+
+ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix format`,
+`mix sobelow`, `mix deps.unlock` and `mix test.coverage`. Mix resolves aliases
+before tasks, so a `mix.exs` alias with one of those names changes what is
+measured, silently.
+
+Do not add an alias with one of those names. If the project already has one,
+the stage says so and refuses to run; rename the alias (`sobelow.all` is the
+usual choice) and update the scripts that call it.
+
+`test` is the exception. An alias like
+`test: ["ecto.create --quiet", "ecto.migrate", "test"]` is correct and
+supported: it does the setup the suite needs.
 
 ## Never do these
 

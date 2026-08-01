@@ -113,13 +113,48 @@ project's `.doctor.exs`.
 
 ## Gettext
 
-Runs `mix gettext.extract --merge`, then reads the resulting `.po` files for
-untranslated and fuzzy entries.
+Reads the project's `.po` files for untranslated and fuzzy entries, under every
+umbrella child app as well as the root, and reports each one at its `msgid`.
 
 ```
-✓ Gettext: All translations complete (1.1s)
-✗ Gettext: 4 missing, 2 fuzzy translation(s)
+✓ Gettext: All translations complete (12 files) (30ms)
+✗ Gettext: 4 missing, 2 fuzzy translations
+○ Gettext: skipped (no .po files found)
 ```
+
+Files in the source locale are not checked, because the source locale is
+untranslated by definition. It is `"en"` unless `gettext: [source_locale: ...]`
+says otherwise, and `errors.po` is excluded for the same reason. A run left
+with nothing to read reports itself as skipped rather than complete.
+
+This stage does not run `mix gettext.extract --merge`. That task writes: it
+rewrites `.pot` and `.po` files, and it compiles the project to do it, which
+changes the build the other stages are reading. `gettext: [extract: true]` opts
+back in, and the run then serialises the stage rather than running it alongside
+the readers.
+
+No other stage can write to your repository.
+
+## Aliased tasks
+
+ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix format`,
+`mix sobelow`, `mix deps.unlock` and `mix test.coverage`, and reads what they
+print. Mix resolves aliases before tasks, so a project that defines an alias
+with one of those names silently changes what the stage measures.
+
+A stage checks before shelling out, and refuses rather than reporting a number
+about a command it did not issue:
+
+```
+✗ Format: mix format is aliased in mix.exs
+✗ Sobelow: mix sobelow is aliased in mix.exs
+```
+
+Rename the alias (`sobelow.all` is the usual choice) and point your own scripts
+at the new name.
+
+`mix test` is the deliberate exception: a `test:` alias that runs migrations
+first is near-universal, and running it is what the suite needs.
 
 ## Sobelow
 

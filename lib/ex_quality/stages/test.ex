@@ -45,6 +45,20 @@ defmodule ExQuality.Stages.Test do
 
   ## Findings
 
+  A failing test is the most common thing a run has to hand off, so each one is
+  parsed into a finding carrying the file, the line the test is defined at, the
+  app, the test module and the assertion message. The alternative is 30 KB of
+  run log with one failure buried in it.
+
+  The failure block's own `stacktrace:` lines are relative to the app, while
+  the header line under the test's name is relative to the umbrella root, so
+  the header line is what is read: a path that does not open from where the
+  report was generated cannot be routed anywhere.
+
+  The parse is used only when it accounts for every failure the suite counted.
+  Three findings for four failures would read as the complete list, which is
+  worse than showing the log; a short parse falls back to `output` in full.
+
   A failing coverage check reports the modules under the threshold, not the
   whole table. A 400-module umbrella prints 400 rows; the handful below the line
   are the ones a reader acts on. Modules are reported only when the run actually
@@ -52,6 +66,7 @@ defmodule ExQuality.Stages.Test do
   can hold a low module and there is nothing to do about it.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.Umbrella
 
@@ -71,9 +86,24 @@ defmodule ExQuality.Stages.Test do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
+    mode = coverage_mode(config)
+
+    if aggregating?(mode) and Aliases.shadowing?("test.coverage") do
+      Aliases.shadowed("Tests", "test.coverage")
+    else
+      test(config, mode)
+    end
+  end
+
+  # A `test:` alias is near-universal and running it is correct: it does the
+  # setup the suite needs. `mix test.coverage` is pure aggregation, so an alias
+  # on that one runs the whole suite a second time before aggregating, and the
+  # only trace is a doubled test count and a doubled wall clock.
+  defp aggregating?(mode), do: mode == :native and Umbrella.umbrella?()
+
+  defp test(config, mode) do
     start_time = System.monotonic_time(:millisecond)
 
-    mode = coverage_mode(config)
     test_args = config |> Keyword.get(:test, []) |> Keyword.get(:args, [])
 
     {output, exit_code} = run_tests(mode, test_args)
@@ -162,7 +192,9 @@ defmodule ExQuality.Stages.Test do
       |> merge_test_counts(scan.tests)
       |> merge_coverage(scan, mode)
 
-    %{stats: stats, findings: findings(stats, scan)}
+    findings = failure_findings(output, stats) ++ findings(stats, scan)
+
+    %{stats: stats, findings: Finding.sort(findings)}
   end
 
   # Walks the output once, attributing every summary line to the app whose
@@ -216,6 +248,115 @@ defmodule ExQuality.Stages.Test do
 
   defp add_coverage(acc, percentage) do
     %{acc | coverage: [%{app: acc.app, coverage: to_float(percentage)} | acc.coverage]}
+  end
+
+  # ExUnit opens each failure with a numbered header naming the test and its
+  # module, and follows it immediately with the file and line the test is
+  # defined at.
+  @failure_header_regex ~r/^\s*\d+\)\s+(\w+)\s+(.+?)\s+\(([A-Z]\S*)\)\s*$/
+  @failure_location_regex ~r/^\s*(\S+\.exs?):(\d+)\s*$/
+  # Everything ExUnit prints about *how* the assertion failed rather than
+  # *what* went wrong. The lines before these are the message.
+  @failure_detail_regex ~r/^\s*(code|stacktrace|left|right|arguments|The following output was logged):/
+
+  # A failing test is the most common thing a run has to hand off, so it is
+  # parsed into a finding a caller can route rather than left in 30 KB of run
+  # log. The whole log is still carried in `output`.
+  #
+  # Only a parse that accounts for every failure the suite reported is used. A
+  # partial one would render three findings for four failures and read as the
+  # complete list, which is worse than showing the log.
+  defp failure_findings(output, %{failed_count: failed}) when failed > 0 do
+    apps = Umbrella.apps_paths()
+
+    findings =
+      output
+      |> String.split("\n")
+      |> Enum.reduce(%{state: :scanning, failures: []}, &failure_line/2)
+      |> close_failure()
+      |> Map.fetch!(:failures)
+      |> Enum.reverse()
+      |> Enum.map(&failure_finding(&1, apps))
+
+    if length(findings) == failed, do: findings, else: []
+  end
+
+  defp failure_findings(_output, _stats), do: []
+
+  defp failure_line(line, %{state: :scanning} = acc) do
+    case Regex.run(@failure_header_regex, line) do
+      [_line, kind, name, module] ->
+        failure = %{
+          kind: kind,
+          name: name,
+          module: module,
+          file: nil,
+          line: nil,
+          message: [],
+          raw: [line]
+        }
+
+        %{acc | state: failure}
+
+      nil ->
+        acc
+    end
+  end
+
+  # The location is on the line right after the header. Anything else there
+  # means this was not a failure block after all.
+  defp failure_line(line, %{state: %{file: nil} = failure} = acc) do
+    case Regex.run(@failure_location_regex, line) do
+      [_line, file, number] ->
+        %{acc | state: %{failure | file: file, line: String.to_integer(number)}}
+
+      nil ->
+        %{acc | state: :scanning}
+    end
+  end
+
+  defp failure_line(line, %{state: failure} = acc) when is_map(failure) do
+    cond do
+      Regex.match?(@failure_detail_regex, line) ->
+        close_failure(%{acc | state: %{failure | raw: [line | failure.raw]}})
+
+      String.trim(line) == "" ->
+        close_failure(acc)
+
+      true ->
+        message = [String.trim(line) | failure.message]
+        %{acc | state: %{failure | message: message, raw: [line | failure.raw]}}
+    end
+  end
+
+  # A block with no location never became a failure, so there is nothing to
+  # close; the reduce just returns to scanning.
+  defp close_failure(%{state: :scanning} = acc), do: acc
+
+  defp close_failure(%{state: %{file: nil}} = acc), do: %{acc | state: :scanning}
+
+  defp close_failure(%{state: failure} = acc) do
+    %{acc | state: :scanning, failures: [failure | acc.failures]}
+  end
+
+  defp failure_finding(failure, apps) do
+    file = Finding.relative_path(failure.file)
+
+    %Finding{
+      file: file,
+      line: failure.line,
+      app: Umbrella.app_for_path(file, apps),
+      severity: :error,
+      check: failure.module,
+      message: describe_failure(failure),
+      raw: failure.raw |> Enum.reverse() |> Enum.join("\n")
+    }
+  end
+
+  defp describe_failure(%{name: name, message: []}), do: name
+
+  defp describe_failure(%{name: name, message: message}) do
+    "#{name}: #{message |> Enum.reverse() |> Enum.join(" ")}"
   end
 
   defp merge_test_counts(stats, []), do: stats
