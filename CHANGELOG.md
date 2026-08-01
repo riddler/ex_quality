@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-01
+
 ### Added
 
 - `ExQuality.Finding`, a structured representation of a single actionable problem (file, line, column, severity, check, message, and the raw tool output it came from)
@@ -63,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Format stage reports a project with no `.formatter.exs` as skipped, rather than failing the run over a config file it never had
 - `.quality.exs` is read from the project root instead of the working directory, and an umbrella child with no file of its own now reads the umbrella root's
 
-## [0.6.0]
+## [0.6.0] - 2026-04-05
 
 ### Fixed
 

@@ -60,7 +60,7 @@ want to route on a result rather than read it, ask for
 
 ```elixir
 def deps do
-  [{:ex_quality, "~> 0.6", only: :dev, runtime: false}]
+  [{:ex_quality, "~> 0.7", only: :dev, runtime: false}]
 end
 ```
 
