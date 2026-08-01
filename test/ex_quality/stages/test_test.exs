@@ -155,20 +155,20 @@ defmodule ExQuality.Stages.TestTest do
       |> stub(:available?, fn _tool -> false end)
 
       ExQuality.Umbrella
-      |> stub(:apps_paths, fn -> %{walt_ui: "apps/walt_ui"} end)
+      |> stub(:apps_paths, fn -> %{web: "apps/web"} end)
 
       System
       |> expect(:cmd, fn "mix", ["test"], _opts ->
         output = """
-        ==> walt_ui
+        ==> web
         .....F
 
-          1) test Oban jobs a job execution produces a consumer span (WaltUi.Telemetry.ConsumerTracingTest)
-             apps/walt_ui/test/walt_ui/telemetry/consumer_tracing_test.exs:118
+          1) test Oban jobs a job execution produces a consumer span (Web.Telemetry.ConsumerTracingTest)
+             apps/web/test/web/telemetry/consumer_tracing_test.exs:118
              expected an Oban job span named 'process default'
              code: assert job_span, "expected an Oban job span named 'process default'"
              stacktrace:
-               test/walt_ui/telemetry/consumer_tracing_test.exs:145: (test)
+               test/web/telemetry/consumer_tracing_test.exs:145: (test)
 
 
         Finished in 3.1 seconds
@@ -184,10 +184,10 @@ defmodule ExQuality.Stages.TestTest do
     test "attributes the failure to its app, from the header line's path" do
       assert [finding] = ExQuality.Stage.findings(Test.run([]))
 
-      assert finding.app == :walt_ui
-      assert finding.file == "apps/walt_ui/test/walt_ui/telemetry/consumer_tracing_test.exs"
+      assert finding.app == :web
+      assert finding.file == "apps/web/test/web/telemetry/consumer_tracing_test.exs"
       assert finding.line == 118
-      assert finding.check == "WaltUi.Telemetry.ConsumerTracingTest"
+      assert finding.check == "Web.Telemetry.ConsumerTracingTest"
     end
 
     test "reads the header line rather than the app-relative stacktrace" do
@@ -195,7 +195,7 @@ defmodule ExQuality.Stages.TestTest do
 
       # The stacktrace says test/... and line 145; only the header line opens
       # from the umbrella root.
-      refute finding.file == "test/walt_ui/telemetry/consumer_tracing_test.exs"
+      refute finding.file == "test/web/telemetry/consumer_tracing_test.exs"
       refute finding.line == 145
     end
 

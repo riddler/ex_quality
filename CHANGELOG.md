@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A skipped custom stage's reason is no longer whatever the toolchain printed first.** The reason a person reads was the command's first non-empty line, which made it hostage to output the command did not write: `mix` emits `==> app` headers for an umbrella and a build-lock notice when another stage holds the lock, either of which turned `skipped (the database has no tables - run bin/test-setup)` into `skipped (==> admin)`. That defeats the point of `skip_exit_code:`, which exists to turn a confusing failure into a reason somebody can act on. The document's `summary` is now preferred when the command wrote one, falling back to the first line for a command that prints prose or sets `parse: :none`
+- **A custom stage's `command:` may name a project's own script.** `System.cmd/3` resolves a bare name on the PATH and otherwise wants an absolute path - even `./bin/check.sh` raises `:enoent` - so a repo-relative script, which is the ordinary case for a custom stage, had to be written as `command: "bash", args: ["bin/check.sh"]`. A command containing `/` is now expanded before it runs, relative to `cd:` when the entry names one and to the project root otherwise, so an entry reads as the shell it looks like. A bare name still goes to the PATH and an absolute path is used as it stands
+
 ## [0.10.0] - 2026-08-01
 
 ### Added
