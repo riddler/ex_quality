@@ -40,7 +40,8 @@ defmodule ExQuality.Stages.GettextTest do
   # Each test describes the tree it wants as `path => contents` and is run from
   # inside it, because the stage's whole job is finding files from the root.
   defp in_project(files, fun) do
-    root = Path.join(System.tmp_dir!(), "ex_quality-gettext-#{System.unique_integer([:positive])}")
+    root =
+      Path.join(System.tmp_dir!(), "ex_quality-gettext-#{System.unique_integer([:positive])}")
 
     Enum.each(files, fn {path, contents} ->
       full = Path.join(root, path)

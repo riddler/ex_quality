@@ -33,10 +33,15 @@ defmodule ExQuality.Stages.Format do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(_config) do
-    if formatter_config?() do
-      format()
-    else
-      ExQuality.Stage.skipped("Format", "no .formatter.exs")
+    cond do
+      ExQuality.Aliases.shadowing?("format") ->
+        ExQuality.Aliases.shadowed("Format", "format")
+
+      formatter_config?() ->
+        format()
+
+      true ->
+        ExQuality.Stage.skipped("Format", "no .formatter.exs")
     end
   end
 

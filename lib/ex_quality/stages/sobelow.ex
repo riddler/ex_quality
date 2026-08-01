@@ -50,6 +50,7 @@ defmodule ExQuality.Stages.Sobelow do
   take on.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.Umbrella
 
@@ -71,6 +72,14 @@ defmodule ExQuality.Stages.Sobelow do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
+    if Aliases.shadowing?("sobelow") do
+      Aliases.shadowed("Sobelow", "sobelow")
+    else
+      scan_project(config)
+    end
+  end
+
+  defp scan_project(config) do
     start_time = System.monotonic_time(:millisecond)
     scans = scan_all(targets(), config)
     duration_ms = System.monotonic_time(:millisecond) - start_time

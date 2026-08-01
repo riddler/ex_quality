@@ -61,6 +61,7 @@ defmodule ExQuality.Stages.Dialyzer do
   alone rather than guessed at.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.OutputCollector
   alias ExQuality.Plt
@@ -80,6 +81,14 @@ defmodule ExQuality.Stages.Dialyzer do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(_config) do
+    if Aliases.shadowing?("dialyzer") do
+      Aliases.shadowed("Dialyzer", "dialyzer")
+    else
+      analyse()
+    end
+  end
+
+  defp analyse do
     start_time = System.monotonic_time(:millisecond)
 
     {output, exit_code} = run_dialyzer()

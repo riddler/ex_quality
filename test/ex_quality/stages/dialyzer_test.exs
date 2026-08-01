@@ -261,7 +261,8 @@ defmodule ExQuality.Stages.DialyzerTest do
 
   # Runs `fun` from a tree that is an umbrella containing exactly these files.
   defp in_project(files, fun) do
-    root = Path.join(System.tmp_dir!(), "ex_quality-dialyzer-#{System.unique_integer([:positive])}")
+    root =
+      Path.join(System.tmp_dir!(), "ex_quality-dialyzer-#{System.unique_integer([:positive])}")
 
     Enum.each(files, fn path ->
       full = Path.join(root, path)

@@ -52,6 +52,7 @@ defmodule ExQuality.Stages.Test do
   can hold a low module and there is nothing to do about it.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.Umbrella
 
@@ -71,9 +72,24 @@ defmodule ExQuality.Stages.Test do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
+    mode = coverage_mode(config)
+
+    if aggregating?(mode) and Aliases.shadowing?("test.coverage") do
+      Aliases.shadowed("Tests", "test.coverage")
+    else
+      test(config, mode)
+    end
+  end
+
+  # A `test:` alias is near-universal and running it is correct: it does the
+  # setup the suite needs. `mix test.coverage` is pure aggregation, so an alias
+  # on that one runs the whole suite a second time before aggregating, and the
+  # only trace is a doubled test count and a doubled wall clock.
+  defp aggregating?(mode), do: mode == :native and Umbrella.umbrella?()
+
+  defp test(config, mode) do
     start_time = System.monotonic_time(:millisecond)
 
-    mode = coverage_mode(config)
     test_args = config |> Keyword.get(:test, []) |> Keyword.get(:args, [])
 
     {output, exit_code} = run_tests(mode, test_args)

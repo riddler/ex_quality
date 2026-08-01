@@ -31,6 +31,7 @@ defmodule ExQuality.Stages.Dependencies do
   in full instead.
   """
 
+  alias ExQuality.Aliases
   alias ExQuality.Finding
   alias ExQuality.Json
   alias ExQuality.Umbrella
@@ -49,6 +50,14 @@ defmodule ExQuality.Stages.Dependencies do
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
+    if Aliases.shadowing?("deps.unlock") do
+      Aliases.shadowed("Dependencies", "deps.unlock")
+    else
+      check(config)
+    end
+  end
+
+  defp check(config) do
     start_time = System.monotonic_time(:millisecond)
 
     deps_config = Keyword.get(config, :dependencies, [])
