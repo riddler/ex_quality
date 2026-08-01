@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dialyzer could report `✓ No warnings` on a project with 110 real warnings.** The Gettext stage ran `mix gettext.extract --merge`, which recompiles the project, alongside the analysis stages that read the same build. Dialyzer, invoked with `--no-compile`, hit `Could not get Core Erlang code` and produced nothing, and the debug_info escape hatch promoted that to a pass
+- Dialyzer now separates "ran and found nothing" from "never ran" by whether dialyxir printed its own `Total errors:` tally, and reports the second as a failure (`Analysis did not complete (build changed under it? see output)`) rather than a pass
+- The Gettext stage found no `.po` files in an umbrella and reported `All translations complete` having read nothing. It now looks under every child app as well as the root, and reports `:skipped` with the reason when it examined no files
+- The Gettext stage rejected every path containing `/en/` and every `errors.po` invisibly, so a project whose only locale was `en` had every file filtered out and still went green
+- Dialyzer findings in an umbrella carried `app: null` and an app-relative `file` that did not open from the umbrella root. Each path is now resolved against the child apps by existence; an ambiguous path is left alone rather than guessed at
+- A failing test suite came back with no findings and the whole run log in `output`. Each ExUnit failure is now parsed into a finding with `file`, `line`, `app`, the test module and the assertion message
+
+### Changed
+
+- **The Gettext stage no longer writes to your repository.** `mix gettext.extract --merge` rewrote `.pot`/`.po` files and left the dev build inconsistent enough that the next `mix compile --warnings-as-errors` failed. It is now opt-in with `gettext: [extract: true]`, and the stage reads the committed files as they stand
+- Gettext reports `%ExQuality.Finding{}` structs with app attribution rather than a hand-built prose string, so its failures route like every other stage's
+- Gettext's source locale is configurable (`gettext: [source_locale: "en"]`), as is the excluded basename list (`gettext: [exclude: ["errors.po"]]`)
+
 ### Added
 
+- **Mix alias detection.** ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix format`, `mix sobelow`, `mix deps.unlock` and `mix test.coverage`, and Mix resolves aliases before tasks. A project that aliases one of those names silently changed what the stage measured: `mix sobelow` ran the alias, ignored every switch and wrote no report; `mix test.coverage` ran the entire suite a second time before aggregating. Those stages now refuse to run and name the alias (`✗ Sobelow: mix sobelow is aliased in mix.exs`). `mix test` is the deliberate exception, since a `test:` alias does the setup the suite needs
+- `ExQuality.Aliases`, with `shadowing?/1` and `shadowed/2`
+- Stages declare whether they read the build or write to it (`stage_kind/1`, `ExQuality.Stage.kind/2`). Writers run serialized before the parallel readers, the way compilation already gates the run
 - A project mark under `assets/`: an SVG with a transparent surround, so it reads on a light or a dark background, plus PNG renders from 512 down to 32. It is the README's header, and the published docs' logo and favicon. The assets are not shipped in the package: HexDocs is built from the checkout at publish time, so nothing downloading the dependency needs them
 
 ## [0.7.0] - 2026-08-01

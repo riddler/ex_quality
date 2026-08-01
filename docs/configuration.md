@@ -68,7 +68,14 @@ A keyword list at the project root. Every key is optional.
   ],
 
   gettext: [
-    enabled: :auto
+    enabled: :auto,
+    # The locale the source is written in, whose .po files are not checked.
+    source_locale: "en",
+    # Basenames to skip. Phoenix generates errors.po with empty entries.
+    exclude: ["errors.po"],
+    # Run `mix gettext.extract --merge` first. It writes to the repository and
+    # recompiles the project, so the run serialises this stage when it is on.
+    extract: false
   ],
 
   sobelow: [

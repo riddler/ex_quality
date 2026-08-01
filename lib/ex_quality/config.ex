@@ -47,6 +47,11 @@ defmodule ExQuality.Config do
   - `dependencies.check_unused` - Check for unused dependencies (default: true)
   - `dependencies.audit` - Run security audit if available (default: :auto)
   - `doctor.summary_only` - Show only summary (default: false)
+  - `gettext.source_locale` - The locale the source is written in, whose `.po`
+    files are not checked (default: `"en"`)
+  - `gettext.exclude` - Basenames to skip (default: `["errors.po"]`)
+  - `gettext.extract` - Run `mix gettext.extract --merge` first, which writes to
+    the repository and recompiles the project (default: false)
   - `sobelow.exit` - Confidence level that blocks, when `.sobelow-conf` sets no
     `exit:` of its own (default: "medium")
   - `sobelow.show_informational` - Render findings below that level as well as
@@ -76,7 +81,14 @@ defmodule ExQuality.Config do
       summary_only: false
     ],
     gettext: [
-      enabled: :auto
+      enabled: :auto,
+      # The locale the source is written in. Its .po files are untranslated by
+      # definition, so checking them would report every entry in them.
+      source_locale: "en",
+      exclude: ["errors.po"],
+      # `mix gettext.extract --merge` writes to the repository and recompiles
+      # the project, so it is opt-in rather than something a checker does.
+      extract: false
     ],
     sobelow: [
       enabled: :auto,

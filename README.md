@@ -105,7 +105,7 @@ nothing to switch on.
 | Dialyzer | `mix dialyzer --format short --format dialyxir` | `:dialyxir` |
 | Dependencies | `mix deps.unlock --check-unused`, `mix deps.audit --format json` | always; audit needs `:mix_audit` |
 | Doctor | `mix doctor` | `:doctor` |
-| Gettext | `mix gettext.extract --merge`, then reads the `.po` files | `:gettext` |
+| Gettext | reads the `.po` files | `:gettext` |
 | Sobelow | `mix sobelow` | `:sobelow` |
 | Tests | `mix test` | always |
 | Coverage | `mix coveralls`, or `mix test --cover` | `:excoveralls`, or a threshold in `test_coverage` |
