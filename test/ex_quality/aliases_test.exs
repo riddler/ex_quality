@@ -5,6 +5,7 @@ defmodule ExQuality.AliasesTest do
 
   alias ExQuality.Aliases
   alias ExQuality.Stage
+  alias ExQuality.Stages
 
   doctest ExQuality.Aliases
 
@@ -73,7 +74,7 @@ defmodule ExQuality.AliasesTest do
       with_aliases(fn ->
         System |> reject(:cmd, 3)
 
-        result = ExQuality.Stages.Sobelow.run([])
+        result = Stages.Sobelow.run([])
 
         assert result.status == :error
         assert result.summary == "mix sobelow is aliased in mix.exs"
@@ -86,7 +87,7 @@ defmodule ExQuality.AliasesTest do
         stub(ExQuality.Tools, :available?, fn tool -> tool == :native_coverage end)
         System |> reject(:cmd, 3)
 
-        result = ExQuality.Stages.Test.run(test: [coverage: true])
+        result = Stages.Test.run(test: [coverage: true])
 
         assert result.status == :error
         assert result.summary == "mix test.coverage is aliased in mix.exs"
@@ -100,7 +101,7 @@ defmodule ExQuality.AliasesTest do
         System
         |> expect(:cmd, fn "mix", ["test"], _opts -> {"1 tests, 0 failures\n", 0} end)
 
-        result = ExQuality.Stages.Test.run([])
+        result = Stages.Test.run([])
 
         assert result.status == :ok
         assert result.stats.test_count == 1
@@ -112,7 +113,7 @@ defmodule ExQuality.AliasesTest do
         System
         |> expect(:cmd, fn "mix", ["credo" | _rest], _opts -> {~s({"issues": []}), 0} end)
 
-        assert ExQuality.Stages.Credo.run([]).status == :ok
+        assert Stages.Credo.run([]).status == :ok
       end)
     end
   end

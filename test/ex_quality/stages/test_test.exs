@@ -132,6 +132,112 @@ defmodule ExQuality.Stages.TestTest do
       assert result.summary == "3 of 124 failed"
       assert result.output =~ "test/my_app_test.exs:42"
     end
+
+    test "parses each failure into a finding a caller can route" do
+      assert [first, second, third] = ExQuality.Stage.findings(Test.run([]))
+
+      assert %ExQuality.Finding{
+               file: "test/my_app_test.exs",
+               line: 42,
+               severity: :error,
+               check: "MyAppTest",
+               message: "handles error case: Expected true, got false"
+             } = first
+
+      assert %{line: 55, message: "validates input: Assertion failed"} = second
+      assert %{line: 68, message: "processes data: Expected 5, got 4"} = third
+    end
+  end
+
+  describe "run/1 - failures in an umbrella" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn _tool -> false end)
+
+      ExQuality.Umbrella
+      |> stub(:apps_paths, fn -> %{walt_ui: "apps/walt_ui"} end)
+
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+        ==> walt_ui
+        .....F
+
+          1) test Oban jobs a job execution produces a consumer span (WaltUi.Telemetry.ConsumerTracingTest)
+             apps/walt_ui/test/walt_ui/telemetry/consumer_tracing_test.exs:118
+             expected an Oban job span named 'process default'
+             code: assert job_span, "expected an Oban job span named 'process default'"
+             stacktrace:
+               test/walt_ui/telemetry/consumer_tracing_test.exs:145: (test)
+
+
+        Finished in 3.1 seconds
+        6 tests, 1 failure
+        """
+
+        {output, 1}
+      end)
+
+      :ok
+    end
+
+    test "attributes the failure to its app, from the header line's path" do
+      assert [finding] = ExQuality.Stage.findings(Test.run([]))
+
+      assert finding.app == :walt_ui
+      assert finding.file == "apps/walt_ui/test/walt_ui/telemetry/consumer_tracing_test.exs"
+      assert finding.line == 118
+      assert finding.check == "WaltUi.Telemetry.ConsumerTracingTest"
+    end
+
+    test "reads the header line rather than the app-relative stacktrace" do
+      [finding] = ExQuality.Stage.findings(Test.run([]))
+
+      # The stacktrace says test/... and line 145; only the header line opens
+      # from the umbrella root.
+      refute finding.file == "test/walt_ui/telemetry/consumer_tracing_test.exs"
+      refute finding.line == 145
+    end
+
+    test "keeps the failure's own lines on the finding" do
+      [finding] = ExQuality.Stage.findings(Test.run([]))
+
+      assert finding.raw =~ "1) test Oban jobs"
+      assert finding.raw =~ "expected an Oban job span"
+    end
+  end
+
+  describe "run/1 - failures the parser does not recognise" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn _tool -> false end)
+
+      # Two failures reported, one of them in a shape the parser cannot read.
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+          1) test handles error case (MyAppTest)
+             test/my_app_test.exs:42
+             Expected true, got false
+
+        ** (exit) an unparseable catastrophe
+
+        2 tests, 2 failures
+        """
+
+        {output, 1}
+      end)
+
+      :ok
+    end
+
+    test "reports nothing rather than a partial list that reads as complete" do
+      result = Test.run([])
+
+      assert ExQuality.Stage.findings(result) == []
+      assert result.output =~ "an unparseable catastrophe"
+      assert result.output =~ "1) test handles error case"
+    end
   end
 
   describe "run/1 - coverage below threshold" do
