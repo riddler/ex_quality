@@ -47,6 +47,13 @@ defmodule ExQuality.ConfigTest do
       assert config[:gettext][:enabled] == false
     end
 
+    test "skip_sobelow CLI option sets sobelow enabled to false" do
+      config = Config.load(skip_sobelow: true)
+
+      assert config[:sobelow][:enabled] == false
+      assert Config.skip_reason(config, :sobelow) == "--skip-sobelow"
+    end
+
     test "skip_dependencies CLI option sets dependencies enabled to false" do
       config = Config.load(skip_dependencies: true)
 
@@ -130,6 +137,38 @@ defmodule ExQuality.ConfigTest do
     end
   end
 
+  describe "skip_reason/2" do
+    test "returns nil when the stage will run" do
+      config = [credo: [enabled: :auto, available: true]]
+
+      assert Config.skip_reason(config, :credo) == nil
+    end
+
+    test "names the CLI switch that disabled the stage" do
+      config = Config.load(skip_dialyzer: true)
+
+      assert Config.skip_reason(config, :dialyzer) == "--skip-dialyzer"
+    end
+
+    test "names the config file when it disabled the stage" do
+      config = [credo: [enabled: false, disabled_by: :config]]
+
+      assert Config.skip_reason(config, :credo) == "disabled in .quality.exs"
+    end
+
+    test "names the missing package when the tool is not installed" do
+      config = [dialyzer: [enabled: :auto, available: false]]
+
+      assert Config.skip_reason(config, :dialyzer) == ":dialyxir not installed"
+    end
+
+    test "falls back to a bare reason for a stage with no package" do
+      config = [dependencies: [enabled: :auto, available: false]]
+
+      assert Config.skip_reason(config, :dependencies) == "disabled"
+    end
+  end
+
   describe "configuration merging" do
     test "deep merges nested keyword lists" do
       config = Config.load()
@@ -175,6 +214,41 @@ defmodule ExQuality.ConfigTest do
     end
   end
 
+  describe "config_path/2" do
+    @describetag :tmp_dir
+
+    test "reads the project's own file", %{tmp_dir: tmp_dir} do
+      child = write_config(tmp_dir, "apps/core")
+      root = write_config(tmp_dir, "root")
+
+      assert Config.config_path(child, root) == Path.join(child, ".quality.exs")
+    end
+
+    test "falls back to the umbrella root's file", %{tmp_dir: tmp_dir} do
+      child = Path.join(tmp_dir, "apps/core")
+      root = write_config(tmp_dir, "root")
+
+      assert Config.config_path(child, root) == Path.join(root, ".quality.exs")
+    end
+
+    test "returns nil when neither root has one", %{tmp_dir: tmp_dir} do
+      assert Config.config_path(tmp_dir, nil) == nil
+    end
+
+    test "handles a project that is its own root", %{tmp_dir: tmp_dir} do
+      root = write_config(tmp_dir, "single")
+
+      assert Config.config_path(root, root) == Path.join(root, ".quality.exs")
+    end
+  end
+
+  describe "config_path/0" do
+    test "resolves the roots from the current project" do
+      # This project has no .quality.exs of its own, and is not in an umbrella.
+      assert Config.config_path() == nil
+    end
+  end
+
   describe "defaults" do
     test "quick mode defaults to false" do
       config = Config.load()
@@ -203,5 +277,12 @@ defmodule ExQuality.ConfigTest do
 
       assert config[:compile][:warnings_as_errors] == true
     end
+  end
+
+  defp write_config(tmp_dir, path) do
+    dir = Path.join(tmp_dir, path)
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, ".quality.exs"), "[]")
+    dir
   end
 end

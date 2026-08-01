@@ -322,7 +322,7 @@ defmodule Mix.Tasks.Quality.Init do
   end
 
   defp display_success(tools) do
-    Mix.shell().info("\n✅ ExQuality initialization complete!")
+    Mix.shell().info("\n✓ ExQuality initialization complete!")
     Mix.shell().info("\nAdded tools: #{format_tool_list(tools)}")
     Mix.shell().info("\nNext steps:")
     Mix.shell().info("  1. Review the changes to mix.exs")

@@ -37,6 +37,39 @@ defmodule ExQuality.OutputCollectorTest do
     end
   end
 
+  describe "new/1 with :on_line" do
+    test "calls the handler with each complete line as it arrives" do
+      test_pid = self()
+      collector = OutputCollector.new(on_line: &send(test_pid, {:line, &1}))
+
+      {_output, 0} = System.cmd("printf", ["line1\nline2\n"], into: collector)
+
+      assert_received {:line, "line1"}
+      assert_received {:line, "line2"}
+    end
+
+    test "reassembles a line split across chunks" do
+      test_pid = self()
+      collector = OutputCollector.new(on_line: &send(test_pid, {:line, &1}))
+
+      _collected = Enum.into(["Adding 12 mod", "ules to a.plt\nnext\n"], collector)
+
+      assert_received {:line, "Adding 12 modules to a.plt"}
+      assert_received {:line, "next"}
+      assert OutputCollector.get_output(collector) == "Adding 12 modules to a.plt\nnext\n"
+    end
+
+    test "holds back a line the command has not finished writing" do
+      test_pid = self()
+      collector = OutputCollector.new(on_line: &send(test_pid, {:line, &1}))
+
+      _collected = Enum.into(["partial"], collector)
+
+      refute_received {:line, _line}
+      assert OutputCollector.get_output(collector) == "partial"
+    end
+  end
+
   describe "get_output/1" do
     test "stops the agent after retrieving output" do
       collector = OutputCollector.new()

@@ -38,7 +38,7 @@ defmodule ExQuality.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:doctor, "~> 0.21", only: :dev},
+      {:doctor, "~> 0.23", only: :dev},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:jason, "~> 1.4"},
@@ -48,22 +48,36 @@ defmodule ExQuality.MixProject do
   end
 
   defp description do
-    "Run quality checks (credo, dialyzer, coverage, etc) in parallel " <>
-      "with actionable output. Useful with LLMs."
+    "Elixir code quality checker. Runs format, compile, Credo, Dialyzer, " <>
+      "coverage, Sobelow and mix_audit in parallel from one mix task, and " <>
+      "reports findings with file:line plus a JSON report for CI, scripts " <>
+      "and AI coding agents. Umbrella-aware."
   end
 
   defp package do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md)
+      files: ~w(lib docs .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md)
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: [
+        "README.md",
+        "docs/configuration.md",
+        "docs/stages.md",
+        "docs/reports.md",
+        "docs/umbrella.md",
+        "docs/ci.md",
+        "usage-rules.md",
+        "CHANGELOG.md"
+      ],
+      groups_for_extras: [
+        Guides: Path.wildcard("docs/*.md")
+      ]
     ]
   end
 end

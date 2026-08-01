@@ -63,6 +63,29 @@ defmodule Integration.ExQualityTest do
       assert output =~ "Credo - FAILED"
       assert output =~ "lib/credo_issues.ex"
     end
+
+    test "writes a report a caller can route on" do
+      fixture_path = copy_fixture("credo_issues")
+
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path, ["--report", ".quality.json"])
+
+      assert exit_code == 1, "Expected failure but got exit code #{exit_code}. Output:\n#{output}"
+
+      report =
+        fixture_path
+        |> Path.join(".quality.json")
+        |> File.read!()
+        |> Jason.decode!()
+
+      assert report["status"] == "error"
+
+      credo = Enum.find(report["stages"], &(&1["name"] == "Credo"))
+
+      assert credo["status"] == "error"
+      assert Enum.any?(credo["findings"], &(&1["file"] == "lib/credo_issues.ex"))
+    end
   end
 
   describe "compile_error fixture" do
@@ -105,8 +128,63 @@ defmodule Integration.ExQualityTest do
       {output, exit_code} = run_quality(fixture_path)
 
       assert exit_code == 0, "Expected success. Output:\n#{output}"
-      # Config disables dialyzer, so it shouldn't appear
-      refute output =~ "Dialyzer"
+      # Config disables dialyzer, so it should say so rather than run
+      assert output =~ "Dialyzer: skipped (disabled in .quality.exs)"
+      refute output =~ "✓ Dialyzer"
+    end
+  end
+
+  describe "umbrella fixture" do
+    test "detects a child app's tools and groups findings by app" do
+      fixture_path = copy_fixture("umbrella")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      # Credo is declared by apps/core only. Reading the umbrella root alone
+      # would report it as not installed and pass the run.
+      assert exit_code == 1, "Expected credo to run and fail. Output:\n#{output}"
+      refute output =~ "Credo: skipped"
+      assert output =~ "Credo - FAILED"
+      assert output =~ "── core ──"
+      assert output =~ "apps/core/lib/core.ex"
+
+      # Both apps' suites are counted, not just the first one's.
+      assert output =~ "Tests: 2 of 2 passed"
+    end
+  end
+
+  describe "native_coverage fixture" do
+    test "measures coverage without excoveralls and names the modules under the line" do
+      fixture_path = copy_fixture("native_coverage")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      # The project has no excoveralls, only a test_coverage threshold, so the
+      # coverage gate has to come from `mix test --cover`.
+      assert exit_code == 1, "Expected the coverage threshold to fail. Output:\n#{output}"
+      assert output =~ ~r/Tests: Coverage \d+\.\d+% \(required: 90\.0%\)/
+      assert output =~ "lib/native_coverage.ex"
+      assert output =~ ~r/NativeCoverage is \d+\.\d+% covered \(threshold 90\.0%\)/
+    end
+
+    test "--quick runs the suite without enforcing the threshold" do
+      fixture_path = copy_fixture("native_coverage")
+
+      # Install deps
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} =
+        System.cmd("mix", ["quality", "--quick"], cd: fixture_path, stderr_to_stdout: true)
+
+      assert exit_code == 0, "Expected quick mode to pass. Output:\n#{output}"
+      assert output =~ "Tests: 1 of 1 passed"
+      refute output =~ "% coverage"
     end
   end
 
@@ -120,8 +198,11 @@ defmodule Integration.ExQualityTest do
       {output, _exit_code} =
         System.cmd("mix", ["quality", "--quick"], cd: fixture_path, stderr_to_stdout: true)
 
-      # Quick mode should skip Dialyzer
-      refute output =~ "Dialyzer"
+      # Quick mode should skip Dialyzer, and say that it did. This fixture has
+      # no dialyxir either, and the missing package is the reason reported when
+      # both apply, so only the skip itself is asserted here.
+      assert output =~ "○ Dialyzer: skipped ("
+      refute output =~ "✓ Dialyzer"
     end
 
     test "--skip-credo flag skips credo" do
@@ -133,8 +214,10 @@ defmodule Integration.ExQualityTest do
       {output, _exit_code} =
         System.cmd("mix", ["quality", "--skip-credo"], cd: fixture_path, stderr_to_stdout: true)
 
-      # Should not run Credo
-      refute output =~ "Credo"
+      # Should not run Credo, but should report that it was skipped
+      assert output =~ "Credo: skipped (--skip-credo)"
+      refute output =~ "✓ Credo"
+      refute output =~ "Credo - FAILED"
     end
   end
 

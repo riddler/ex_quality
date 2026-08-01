@@ -5,7 +5,7 @@ defmodule ExQuality.Config do
   Configuration is resolved in the following order (later wins):
   1. Defaults
   2. Auto-detected tool availability
-  3. Project config file (.quality.exs)
+  3. Project config file (.quality.exs, read from the project root)
   4. CLI arguments
 
   ## Example .quality.exs
@@ -47,6 +47,12 @@ defmodule ExQuality.Config do
   - `dependencies.check_unused` - Check for unused dependencies (default: true)
   - `dependencies.audit` - Run security audit if available (default: :auto)
   - `doctor.summary_only` - Show only summary (default: false)
+  - `sobelow.exit` - Confidence level that blocks, when `.sobelow-conf` sets no
+    `exit:` of its own (default: "medium")
+  - `sobelow.show_informational` - Render findings below that level as well as
+    counting them (default: false)
+  - `test.coverage` - :auto (measure when the project's config asks for it) |
+    true (always measure) | false (never measure) (default: :auto)
   """
 
   @defaults [
@@ -72,14 +78,24 @@ defmodule ExQuality.Config do
     gettext: [
       enabled: :auto
     ],
+    sobelow: [
+      enabled: :auto,
+      # Default threshold for a project whose .sobelow-conf sets no `exit:`.
+      # A .sobelow-conf that does set one wins: it is the security decision.
+      exit: "medium",
+      show_informational: false
+    ],
     dependencies: [
       enabled: :auto,
       check_unused: true,
       audit: :auto
     ],
     test: [
-      # Coverage: uses excoveralls if available, threshold from coveralls config
+      # Coverage: uses excoveralls if available, otherwise `mix test --cover`
+      # when the project sets a test_coverage threshold. Either way the
+      # threshold comes from the tool's own config, not from here.
       # In quick mode: runs mix test only (no coverage enforcement)
+      coverage: :auto,
       args: []
     ]
   ]
@@ -144,6 +160,44 @@ defmodule ExQuality.Config do
     end
   end
 
+  @doc """
+  Returns why a stage will not run, or `nil` when it will.
+
+  The reason is meant to be shown to the reader, because a stage that is
+  silently omitted reads as a stage that passed.
+
+  ## Examples
+
+      config = ExQuality.Config.load(skip_credo: true)
+      ExQuality.Config.skip_reason(config, :credo)
+      #=> "--skip-credo"
+
+      config = ExQuality.Config.load()
+      ExQuality.Config.skip_reason(config, :doctor)
+      #=> ":doctor not installed"
+  """
+  @spec skip_reason(keyword(), atom()) :: String.t() | nil
+  def skip_reason(config, stage) do
+    if stage_enabled?(config, stage) do
+      nil
+    else
+      stage_config = Keyword.get(config, stage, [])
+
+      case Keyword.get(stage_config, :disabled_by) do
+        :cli -> "--skip-#{stage}"
+        :config -> "disabled in .quality.exs"
+        _other -> unavailable_reason(stage)
+      end
+    end
+  end
+
+  defp unavailable_reason(stage) do
+    case ExQuality.Tools.package(stage) do
+      nil -> "disabled"
+      package -> "#{inspect(package)} not installed"
+    end
+  end
+
   defp resolve_auto_detection do
     tools = ExQuality.Tools.detect()
 
@@ -152,89 +206,126 @@ defmodule ExQuality.Config do
       dialyzer: [available: tools.dialyzer],
       doctor: [available: tools.doctor],
       gettext: [available: tools.gettext],
+      sobelow: [available: tools.sobelow],
       dependencies: [audit_available: tools.audit],
       test: [coverage_available: tools.coverage]
     ]
   end
 
-  defp load_file_config do
-    path = Path.join(File.cwd!(), ".quality.exs")
+  @config_file ".quality.exs"
 
-    if File.exists?(path) do
-      case Code.eval_file(path) do
-        {config, _} when is_list(config) ->
-          config
+  @doc """
+  Returns the path of the `.quality.exs` that applies here, or `nil`.
 
-        _ ->
-          []
-      end
-    else
-      []
+  The file belongs to the project, not to wherever the shell happened to be
+  when `mix quality` was run. An umbrella child with no file of its own falls
+  back to the umbrella root's, because the settings describe the tree.
+
+  Finding the umbrella root needs `Mix.Project.parent_umbrella_project_file/0`,
+  which arrived in Elixir 1.15. On 1.14 only the current project's root is
+  looked at.
+  """
+  @spec config_path() :: String.t() | nil
+  def config_path, do: config_path(project_root(), umbrella_root())
+
+  @doc """
+  Returns the `.quality.exs` under `project_root`, or under `umbrella_root`
+  when the project has none of its own, or `nil` when neither has one.
+
+  Either root may be `nil`, meaning there is no such directory to look in.
+  """
+  @spec config_path(String.t() | nil, String.t() | nil) :: String.t() | nil
+  def config_path(project_root, umbrella_root) do
+    [project_root, umbrella_root]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.map(&Path.join(&1, @config_file))
+    |> Enum.find(&File.exists?/1)
+  end
+
+  defp project_root do
+    case Mix.Project.get() && Mix.Project.project_file() do
+      nil -> File.cwd!()
+      file -> Path.dirname(file)
     end
   end
 
+  # `parent_umbrella_project_file/0` is Elixir 1.15+, and this project supports
+  # 1.14, so its absence means "no umbrella root known" rather than an error.
+  defp umbrella_root do
+    # Called through a variable rather than as `Mix.Project.…`, because a
+    # direct call to a function that does not exist on 1.14 does not compile
+    # cleanly there.
+    mix_project = Mix.Project
+
+    if function_exported?(mix_project, :parent_umbrella_project_file, 0) do
+      case mix_project.parent_umbrella_project_file() do
+        nil -> nil
+        file -> Path.dirname(file)
+      end
+    end
+  end
+
+  defp load_file_config do
+    case config_path() do
+      nil ->
+        []
+
+      path ->
+        case Code.eval_file(path) do
+          {config, _} when is_list(config) ->
+            annotate_disabled(config, :config)
+
+          _ ->
+            []
+        end
+    end
+  end
+
+  # Records where a `enabled: false` came from, so a skipped stage can name the
+  # switch or the file that turned it off rather than just saying "disabled".
+  defp annotate_disabled(config, source) do
+    Enum.map(config, fn
+      {stage, opts} when is_list(opts) ->
+        if Keyword.get(opts, :enabled) == false do
+          {stage, Keyword.put(opts, :disabled_by, source)}
+        else
+          {stage, opts}
+        end
+
+      pair ->
+        pair
+    end)
+  end
+
+  # Every stage has a --skip-<stage> switch, and they all mean the same thing,
+  # so they are one table rather than one branch each.
+  @skip_switches [:credo, :dialyzer, :doctor, :gettext, :sobelow, :dependencies]
+
   defp cli_to_config(opts) do
-    config = []
-
-    # --quick mode: skip dialyzer, skip coverage enforcement
     config =
-      if opts[:quick] do
-        Keyword.put(config, :quick, true)
-      else
-        config
-      end
-
-    # Individual skip flags
-    config =
-      if opts[:skip_dialyzer] do
-        Keyword.put(config, :dialyzer, enabled: false)
-      else
-        config
-      end
-
-    config =
-      if opts[:skip_credo] do
-        Keyword.put(config, :credo, enabled: false)
-      else
-        config
-      end
-
-    config =
-      if opts[:skip_doctor] do
-        Keyword.put(config, :doctor, enabled: false)
-      else
-        config
-      end
-
-    config =
-      if opts[:skip_gettext] do
-        Keyword.put(config, :gettext, enabled: false)
-      else
-        config
-      end
-
-    config =
-      if opts[:skip_dependencies] do
-        Keyword.put(config, :dependencies, enabled: false)
-      else
-        config
-      end
-
-    config =
-      if opts[:verbose] do
-        Keyword.put(config, :verbose, true)
-      else
-        config
-      end
-
-    config =
-      if opts[:test_args] do
-        Keyword.put(config, :test, args: opts[:test_args])
-      else
-        config
-      end
+      Enum.reduce(@skip_switches, [], fn stage, config ->
+        if opts[:"skip_#{stage}"] do
+          Keyword.put(config, stage, enabled: false)
+        else
+          config
+        end
+      end)
 
     config
+    # --quick mode: skip dialyzer, skip coverage enforcement
+    |> put_flag(opts, :quick)
+    |> put_flag(opts, :verbose)
+    |> put_test_args(opts)
+    |> annotate_disabled(:cli)
+  end
+
+  defp put_flag(config, opts, key) do
+    if opts[key], do: Keyword.put(config, key, true), else: config
+  end
+
+  defp put_test_args(config, opts) do
+    if opts[:test_args], do: Keyword.put(config, :test, args: opts[:test_args]), else: config
   end
 
   defp deep_merge(left, right) do

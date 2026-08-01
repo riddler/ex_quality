@@ -243,7 +243,40 @@ defmodule ExQuality.Stages.FormatTest do
     end
   end
 
-  describe "run/1 - always returns :ok status" do
+  describe "run/1 - mix format fails" do
+    setup do
+      format_output = """
+      ** (SyntaxError) lib/my_app/user.ex:12:1: unexpected reserved word: end
+          (elixir 1.17.0) lib/code.ex:1234: Code.string_to_quoted!/2
+      """
+
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {format_output, 1}
+      end)
+      |> expect(:cmd, fn "mix", ["format"], _opts ->
+        {format_output, 1}
+      end)
+
+      :ok
+    end
+
+    test "reports the failure instead of a green tick" do
+      result = Format.run([])
+
+      assert result.status == :error
+      assert result.summary == "mix format failed"
+    end
+
+    test "keeps the tool's output, which names the broken file" do
+      result = Format.run([])
+
+      assert result.output =~ "SyntaxError"
+      assert result.output =~ "lib/my_app/user.ex:12:1"
+    end
+  end
+
+  describe "run/1 - valid code" do
     setup do
       # Mock: mix format --check-formatted returns 0 (all files formatted)
       System
@@ -258,10 +291,9 @@ defmodule ExQuality.Stages.FormatTest do
       :ok
     end
 
-    test "format stage never fails" do
+    test "passes, since format cannot fail on code it can parse" do
       result = Format.run([])
 
-      # Format always succeeds - it can't fail on valid Elixir code
       assert result.status == :ok
     end
   end

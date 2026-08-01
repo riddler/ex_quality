@@ -31,6 +31,8 @@ During integration tests:
 - **compile_error** - Code with compilation errors (undefined functions)
 - **test_failures** - Code that compiles but has failing tests
 - **with_config** - Project with a custom `.quality.exs` configuration file
+- **umbrella** - Two-app umbrella whose root declares no quality tools; credo is declared by `apps/core` only, and only `apps/core` has an issue
+- **native_coverage** - Project with no excoveralls and a `test_coverage: [summary: [threshold: 90]]` setting, whose tests cover one of four functions
 
 ## Running Manually
 

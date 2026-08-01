@@ -8,7 +8,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage not available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       # Mock successful test run
       System
@@ -46,7 +46,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> true end)
+      |> stub(:available?, fn tool -> tool == :coverage end)
 
       # Mock successful coveralls run
       System
@@ -89,7 +89,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage not available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       # Mock failed test run
       System
@@ -138,7 +138,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> true end)
+      |> stub(:available?, fn tool -> tool == :coverage end)
 
       # Mock coveralls run with low coverage
       System
@@ -169,10 +169,11 @@ defmodule ExQuality.Stages.TestTest do
       assert result.stats.passed_count == 124
       assert result.stats.failed_count == 0
       assert result.stats.coverage == 65.5
-      # When no tests failed but coverage is low and coverage_required isn't set,
-      # the summary defaults to "Tests failed"
-      # (coverage_required would need to be read from coveralls.json or mix.exs)
-      assert result.summary == "Tests failed"
+      # A run with no test failures failed on coverage, so the summary names
+      # the number rather than saying "Tests failed". The required percentage
+      # comes from this project's own coveralls.json, so it is not asserted on
+      # here; read_coverage_threshold/1 is covered directly below.
+      assert result.summary =~ "Coverage 65.5% (required: "
     end
   end
 
@@ -180,7 +181,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> true end)
+      |> stub(:available?, fn tool -> tool == :coverage end)
 
       # In quick mode, should run mix test instead of coveralls
       System
@@ -210,7 +211,7 @@ defmodule ExQuality.Stages.TestTest do
     setup do
       # Mock ExQuality.Tools to indicate coverage not available
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       # Mock test run with excluded tests
       System
@@ -242,7 +243,7 @@ defmodule ExQuality.Stages.TestTest do
   describe "run/1 - parsing edge cases" do
     setup do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       :ok
     end
@@ -266,7 +267,7 @@ defmodule ExQuality.Stages.TestTest do
 
     test "handles malformed coverage output" do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> true end)
+      |> stub(:available?, fn tool -> tool == :coverage end)
 
       System
       |> expect(:cmd, fn "mix", ["coveralls"], _opts ->
@@ -292,7 +293,7 @@ defmodule ExQuality.Stages.TestTest do
   describe "run/1 - timing" do
     setup do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       System
       |> expect(:cmd, fn "mix", ["test"], _opts ->
@@ -321,7 +322,7 @@ defmodule ExQuality.Stages.TestTest do
   describe "run/1 - format test counts" do
     setup do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       :ok
     end
@@ -361,10 +362,115 @@ defmodule ExQuality.Stages.TestTest do
     end
   end
 
+  describe "run/1 - umbrella projects" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
+
+      :ok
+    end
+
+    test "sums the per-app summary lines instead of reporting the first" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+        ==> core
+        ....
+        Finished in 1.0 seconds
+        12 tests, 0 failures
+
+        ==> web
+        ...F
+        Finished in 30.0 seconds
+        4168 tests, 3 failures
+        """
+
+        {output, 1}
+      end)
+
+      result = Test.run([])
+
+      assert result.stats.test_count == 4180
+      assert result.stats.failed_count == 3
+      assert result.stats.passed_count == 4177
+      assert result.summary == "3 of 4,180 failed (web: 3)"
+    end
+
+    test "names every failing app and no passing one" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+        ==> core
+        10 tests, 2 failures
+
+        ==> repo
+        10 tests, 0 failures
+
+        ==> web
+        10 tests, 1 failure
+        """
+
+        {output, 1}
+      end)
+
+      result = Test.run([])
+
+      assert result.stats.failures_by_app == [{"core", 2}, {"web", 1}]
+      assert result.summary == "3 of 30 failed (core: 2, web: 1)"
+    end
+
+    test "reports a passing suite as the sum of its apps" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        output = """
+        ==> core
+        12 tests, 0 failures
+
+        ==> web
+        1188 tests, 0 failures
+        """
+
+        {output, 0}
+      end)
+
+      result = Test.run([])
+
+      assert result.status == :ok
+      assert result.summary == "1,200 of 1,200 passed"
+      assert result.stats.failures_by_app == []
+    end
+
+    test "reports the lowest coverage when apps are measured separately" do
+      ExQuality.Tools
+      |> stub(:available?, fn tool -> tool == :coverage end)
+
+      System
+      |> expect(:cmd, fn "mix", ["coveralls"], _opts ->
+        output = """
+        ==> core
+        12 tests, 0 failures
+        [TOTAL]  91.0%
+
+        ==> web
+        88 tests, 0 failures
+        [TOTAL]  72.1%
+        """
+
+        {output, 0}
+      end)
+
+      result = Test.run([])
+
+      assert result.stats.coverage == 72.1
+      assert result.stats.coverage_by_app == [{"core", 91.0}, {"web", 72.1}]
+      assert result.summary == "100 of 100 passed, 72.1% coverage (lowest of 2 apps)"
+    end
+  end
+
   describe "run/1 - test args pass-through" do
     setup do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> false end)
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
 
       :ok
     end
@@ -389,7 +495,7 @@ defmodule ExQuality.Stages.TestTest do
 
     test "passes extra args to mix coveralls" do
       ExQuality.Tools
-      |> stub(:available?, fn :coverage -> true end)
+      |> stub(:available?, fn tool -> tool == :coverage end)
 
       System
       |> expect(:cmd, fn "mix", ["coveralls", "--only", "integration"], _opts ->
@@ -443,5 +549,298 @@ defmodule ExQuality.Stages.TestTest do
 
       assert result.status == :ok
     end
+  end
+
+  describe "run/1 - native coverage" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
+
+      :ok
+    end
+
+    test "stays on bare mix test when the project asks for no coverage" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        {"124 tests, 0 failures\n", 0}
+      end)
+
+      result = Test.run([])
+
+      assert result.status == :ok
+      refute Map.has_key?(result.stats, :coverage)
+    end
+
+    test "runs mix test --cover when coverage is asked for" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {native_output(), 0}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.status == :ok
+      assert result.stats.test_count == 124
+      assert result.stats.coverage == 62.5
+      assert result.summary == "124 of 124 passed, 62.5% coverage"
+    end
+
+    test "passes test args through to mix test --cover" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover", "--only", "integration"], _opts ->
+        {native_output(), 0}
+      end)
+
+      result = Test.run(test: [coverage: true, args: ["--only", "integration"]])
+
+      assert result.status == :ok
+    end
+
+    test "never measures coverage in quick mode" do
+      System
+      |> expect(:cmd, fn "mix", ["test"], _opts ->
+        {"124 tests, 0 failures\n", 0}
+      end)
+
+      result = Test.run(quick: true, test: [coverage: true])
+
+      assert result.status == :ok
+      refute Map.has_key?(result.stats, :coverage)
+    end
+
+    test "reads the threshold the tool printed rather than the project's config" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {native_output(:below_threshold), 3}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.status == :error
+      assert result.stats.coverage == 62.5
+      assert result.stats.coverage_required == 90.0
+      assert result.summary == "Coverage 62.5% (required: 90.0%)"
+    end
+
+    test "reports only the modules under the threshold as findings" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {native_output(:below_threshold), 3}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert Enum.map(result.findings, & &1.message) == [
+               "MyApp.Thing is 33.3% covered (threshold 90.0%)",
+               "MyApp.Unused is 0.0% covered (threshold 90.0%)"
+             ]
+
+      assert Enum.all?(result.findings, &(&1.severity == :error))
+      assert hd(result.findings).raw =~ "33.33% | MyApp.Thing"
+    end
+
+    test "resolves a module to its source file when the beam is there" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        output = """
+        124 tests, 0 failures
+
+        Percentage | Module
+        -----------|--------------------------
+            10.00% | ExQuality.Finding
+        -----------|--------------------------
+            10.00% | Total
+
+        Coverage test failed, threshold not met:
+
+            Coverage:   10.00%
+            Threshold:  90.00%
+        """
+
+        {output, 3}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert [%{file: "lib/ex_quality/finding.ex"}] = result.findings
+    end
+
+    test "falls back to the module name when no beam names it" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {native_output(:below_threshold), 3}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert Enum.map(result.findings, & &1.file) == ["MyApp.Thing", "MyApp.Unused"]
+    end
+
+    test "reports no modules when the run passed its threshold" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {native_output(), 0}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.status == :ok
+      assert result.findings == []
+    end
+
+    test "reports failing tests rather than coverage when both are wrong" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover"], _opts ->
+        {String.replace(native_output(:below_threshold), "0 failures", "3 failures"), 1}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.summary == "3 of 124 failed, 62.5% coverage"
+    end
+  end
+
+  describe "run/1 - native coverage in an umbrella" do
+    setup do
+      ExQuality.Tools
+      |> stub(:available?, fn tool -> tool == :native_coverage end)
+
+      ExQuality.Umbrella
+      |> stub(:umbrella?, fn -> true end)
+      |> stub(:apps_paths, fn -> %{one: "apps/one", two: "apps/two"} end)
+
+      :ok
+    end
+
+    test "exports per app, then aggregates the exports into one total" do
+      System
+      |> expect(:cmd, 2, fn
+        "mix", ["test", "--cover", "--export-coverage", "default"], _opts ->
+          {umbrella_export_output(), 0}
+
+        "mix", ["test.coverage"], _opts ->
+          {umbrella_aggregate_output(), 3}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.status == :error
+      assert result.stats.test_count == 30
+      assert result.stats.coverage == 50.0
+      assert result.stats.coverage_required == 90.0
+      assert result.summary == "Coverage 50.0% (required: 90.0%)"
+    end
+
+    test "tags a finding with the app its source file belongs to" do
+      System
+      |> expect(:cmd, 2, fn
+        "mix", ["test", "--cover", "--export-coverage", "default"], _opts ->
+          {"==> one\n10 tests, 0 failures\n", 0}
+
+        "mix", ["test.coverage"], _opts ->
+          output = """
+          Percentage | Module
+          -----------|--------------------------
+              50.00% | ExQuality.Finding
+          -----------|--------------------------
+              50.00% | Total
+
+          Coverage test failed, threshold not met:
+
+              Coverage:   50.00%
+              Threshold:  90.00%
+          """
+
+          {output, 3}
+      end)
+
+      ExQuality.Umbrella
+      |> stub(:app_for_path, fn "lib/ex_quality/finding.ex", _apps -> :one end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert [%{file: "lib/ex_quality/finding.ex", app: :one}] = result.findings
+    end
+
+    test "does not aggregate coverage when the suite failed" do
+      System
+      |> expect(:cmd, fn "mix", ["test", "--cover", "--export-coverage", "default"], _opts ->
+        {"==> one\n10 tests, 2 failures\n", 1}
+      end)
+
+      result = Test.run(test: [coverage: true])
+
+      assert result.status == :error
+      assert result.summary == "2 of 10 failed (one: 2)"
+      refute Map.has_key?(result.stats, :coverage)
+    end
+  end
+
+  defp native_output(variant \\ :passing) do
+    table = """
+    Running ExUnit with seed: 0, max_cases: 30
+
+    ......
+    Finished in 2.3 seconds
+    124 tests, 0 failures
+
+    Generating cover results ...
+
+    Percentage | Module
+    -----------|--------------------------
+         0.00% | MyApp.Unused
+        33.33% | MyApp.Thing
+       100.00% | MyApp
+    -----------|--------------------------
+        62.50% | Total
+    """
+
+    case variant do
+      :passing ->
+        table
+
+      :below_threshold ->
+        table <>
+          """
+
+          Coverage test failed, threshold not met:
+
+              Coverage:   62.50%
+              Threshold:  90.00%
+          """
+    end
+  end
+
+  defp umbrella_export_output do
+    """
+    ==> one
+    10 tests, 0 failures
+
+    Exporting cover results ...
+
+    ==> two
+    20 tests, 0 failures
+
+    Exporting cover results ...
+    """
+  end
+
+  defp umbrella_aggregate_output do
+    """
+    Importing cover results: apps/one/cover/default.coverdata
+    Importing cover results: apps/two/cover/default.coverdata
+
+    Percentage | Module
+    -----------|--------------------------
+        50.00% | One
+        50.00% | Two
+    -----------|--------------------------
+        50.00% | Total
+
+    Coverage test failed, threshold not met:
+
+        Coverage:   50.00%
+        Threshold:  90.00%
+    """
   end
 end

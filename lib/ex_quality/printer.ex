@@ -52,13 +52,23 @@ defmodule ExQuality.Printer do
 
   @doc """
   Prints a simple message atomically.
+
+  A stage reporting progress may also be run on its own, outside a parallel
+  run, so a message printed with no printer started goes straight to the shell
+  rather than failing: there is nothing to serialize against.
   """
   @spec print_message(String.t()) :: :ok
   def print_message(message) do
-    Agent.get_and_update(__MODULE__, fn state ->
-      Mix.shell().info(message)
-      {:ok, state}
-    end)
+    case Process.whereis(__MODULE__) do
+      nil ->
+        Mix.shell().info(message)
+
+      _pid ->
+        Agent.get_and_update(__MODULE__, fn state ->
+          Mix.shell().info(message)
+          {:ok, state}
+        end)
+    end
   end
 
   defp do_print_result(%{status: :ok} = result) do
@@ -74,8 +84,11 @@ defmodule ExQuality.Printer do
   end
 
   defp do_print_result(%{status: :skipped} = result) do
-    Mix.shell().info("○ #{result.name}: Skipped (#{format_duration(result.duration_ms)})")
+    Mix.shell().info("○ #{result.name}: skipped#{skip_reason(result)}")
   end
+
+  defp skip_reason(%{summary: reason}) when is_binary(reason) and reason != "", do: " (#{reason})"
+  defp skip_reason(_result), do: ""
 
   defp format_duration(ms) when ms < 1000, do: "#{ms}ms"
   defp format_duration(ms), do: "#{Float.round(ms / 1000, 1)}s"

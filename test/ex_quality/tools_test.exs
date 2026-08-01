@@ -1,7 +1,9 @@
 defmodule ExQuality.ToolsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias ExQuality.Tools
+  alias ExQuality.Umbrella
 
   describe "detect/0" do
     test "returns a map with all tool keys" do
@@ -43,6 +45,34 @@ defmodule ExQuality.ToolsTest do
     end
   end
 
+  describe "detect/0 - umbrella projects" do
+    test "detects a tool declared only by a child app" do
+      # An umbrella root usually declares no deps of its own, so a tool is
+      # found only if the child apps are read too.
+      Umbrella
+      |> stub(:child_deps, fn -> [{:gettext, "~> 0.24"}] end)
+
+      assert Tools.detect().gettext == true
+    end
+
+    test "still detects the root's own tools" do
+      Umbrella
+      |> stub(:child_deps, fn -> [{:gettext, "~> 0.24"}] end)
+
+      result = Tools.detect()
+
+      assert result.credo == true
+      assert result.dialyzer == true
+    end
+
+    test "reports a tool no app declares as missing" do
+      Umbrella
+      |> stub(:child_deps, fn -> [{:phoenix, "~> 1.7"}] end)
+
+      assert Tools.detect().gettext == false
+    end
+  end
+
   describe "available?/1" do
     test "returns correct availability for tools" do
       # These ARE in dependencies
@@ -73,8 +103,28 @@ defmodule ExQuality.ToolsTest do
       result = Tools.detect()
 
       # Verify all expected tools are checked
-      expected_tools = [:audit, :coverage, :credo, :dialyzer, :doctor, :gettext]
+      expected_tools = [
+        :audit,
+        :coverage,
+        :credo,
+        :dialyzer,
+        :doctor,
+        :gettext,
+        :native_coverage,
+        :sobelow
+      ]
+
       assert Map.keys(result) |> Enum.sort() == Enum.sort(expected_tools)
+    end
+
+    test "reports native coverage as the alternative to excoveralls" do
+      result = Tools.detect()
+
+      assert result.native_coverage == not result.coverage
+    end
+
+    test "has no package for native coverage, because it is the absence of one" do
+      assert Tools.package(:native_coverage) == nil
     end
   end
 end
