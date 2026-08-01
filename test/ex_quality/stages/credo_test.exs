@@ -273,6 +273,126 @@ defmodule ExQuality.Stages.CredoTest do
     end
   end
 
+  describe "run/1 - multiple configs" do
+    test "runs credo once per named config, in order" do
+      System
+      |> expect(:cmd, fn "mix", args, _opts ->
+        assert args == @args ++ ["--config-name", "default"]
+        {report([]), 0}
+      end)
+      |> expect(:cmd, fn "mix", args, _opts ->
+        assert args == @args ++ ["--config-name", "migrations"]
+        {report([]), 0}
+      end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.status == :ok
+      assert result.summary == "No issues"
+    end
+
+    test "merges the findings of every config into one result" do
+      System
+      |> expect(:cmd, fn "mix", _args, _opts -> {report([issue(%{})]), 1} end)
+      |> expect(:cmd, fn "mix", _args, _opts ->
+        {report([
+           issue(%{
+             "check" => "Credo.Check.Warning.IoInspect",
+             "category" => "warning",
+             "filename" => "priv/repo/migrations/001_init.exs",
+             "line_no" => 3,
+             "message" => "There should be no calls to IO.inspect/2."
+           })
+         ]), 1}
+      end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.status == :error
+      assert result.stats.issue_count == 2
+      assert result.summary == "2 issues (1 warning, 1 readability)"
+
+      assert Enum.map(ExQuality.Stage.findings(result), & &1.file) == [
+               "lib/my_app/user.ex",
+               "priv/repo/migrations/001_init.exs"
+             ]
+    end
+
+    test "counts an issue both configs report once" do
+      System
+      |> expect(:cmd, 2, fn "mix", _args, _opts -> {report([issue(%{})]), 1} end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.stats.issue_count == 1
+      assert result.summary == "1 issue (1 readability)"
+      assert [%{file: "lib/my_app/user.ex"}] = ExQuality.Stage.findings(result)
+    end
+
+    test "keeps two issues that differ only in check" do
+      System
+      |> expect(:cmd, fn "mix", _args, _opts -> {report([issue(%{})]), 1} end)
+      |> expect(:cmd, fn "mix", _args, _opts ->
+        {report([issue(%{"check" => "Credo.Check.Readability.Specs"})]), 1}
+      end)
+
+      assert Credo.run(credo: [configs: ["a", "b"]]).stats.issue_count == 2
+    end
+
+    test "names the config when a run reported no issues and failed anyway" do
+      System
+      |> expect(:cmd, fn "mix", _args, _opts -> {report([]), 0} end)
+      |> expect(:cmd, fn "mix", _args, _opts -> {report([]), 1} end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.status == :error
+      assert result.summary == "Check failed in \"migrations\" (see output)"
+    end
+
+    test "names the config when a run printed no report at all" do
+      System
+      |> expect(:cmd, fn "mix", _args, _opts -> {report([]), 0} end)
+      |> expect(:cmd, fn "mix", _args, _opts ->
+        {"** (Mix) Unknown config: migrations\n", 1}
+      end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.status == :error
+      assert result.summary == ~s(Credo did not produce a report in "migrations")
+      assert result.output =~ "Unknown config: migrations"
+    end
+
+    test "attributes each run's output to the config that produced it" do
+      System
+      |> expect(:cmd, fn "mix", _args, _opts -> {"first\n", 0} end)
+      |> expect(:cmd, fn "mix", _args, _opts -> {"second\n", 0} end)
+
+      result = Credo.run(credo: [configs: ["default", "migrations"]])
+
+      assert result.output =~ "── credo --config-name default ──\nfirst"
+      assert result.output =~ "── credo --config-name migrations ──\nsecond"
+    end
+
+    test "an empty list runs credo once, as no list does" do
+      System
+      |> expect(:cmd, fn "mix", @args, _opts -> {report([]), 0} end)
+
+      assert Credo.run(credo: [configs: []]).status == :ok
+    end
+
+    test "configs: nil passes the same args as today" do
+      System
+      |> expect(:cmd, fn "mix", @args, _opts -> {report([]), 0} end)
+
+      result = Credo.run(credo: [configs: nil])
+
+      assert result.status == :ok
+      assert result.output == report([])
+    end
+  end
+
   describe "run/1 - timing" do
     setup do
       System

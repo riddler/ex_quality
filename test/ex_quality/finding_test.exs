@@ -152,4 +152,91 @@ defmodule ExQuality.FindingTest do
       refute Finding.render([finding(line: 1)]) =~ "──"
     end
   end
+
+  describe "from_map/2" do
+    test "reads every field a tool reports" do
+      {:ok, parsed} =
+        Finding.from_map(%{
+          "file" => "lib/user.ex",
+          "line" => 14,
+          "column" => 3,
+          "app" => "ex_quality",
+          "severity" => "error",
+          "check" => "unsound",
+          "message" => "typed non-nil over a nullable column"
+        })
+
+      assert %Finding{
+               file: "lib/user.ex",
+               line: 14,
+               column: 3,
+               app: :ex_quality,
+               severity: :error,
+               check: "unsound",
+               message: "typed non-nil over a nullable column"
+             } = parsed
+    end
+
+    test "requires only a file and a message" do
+      assert {:ok, parsed} = Finding.from_map(%{"file" => "lib/a.ex", "message" => "no"})
+
+      assert %Finding{line: nil, column: nil, app: nil, check: nil, severity: :warning} = parsed
+    end
+
+    test "rejects an entry with nowhere to look" do
+      assert Finding.from_map(%{"message" => "no file"}) == :error
+      assert Finding.from_map(%{"file" => "lib/a.ex"}) == :error
+      assert Finding.from_map(%{"file" => 1, "message" => "no"}) == :error
+    end
+
+    test "reads each severity, and defaults an unknown one rather than dropping it" do
+      for {given, expected} <- [{"error", :error}, {"warning", :warning}, {"info", :info}] do
+        assert {:ok, %{severity: ^expected}} =
+                 Finding.from_map(%{"file" => "a.ex", "message" => "x", "severity" => given})
+      end
+
+      assert {:ok, %{severity: :warning}} =
+               Finding.from_map(%{"file" => "a.ex", "message" => "x", "severity" => "critical"})
+    end
+
+    test "ignores a line or column that is not a position" do
+      assert {:ok, %{line: nil, column: nil}} =
+               Finding.from_map(%{
+                 "file" => "a.ex",
+                 "message" => "x",
+                 "line" => 0,
+                 "column" => "3"
+               })
+    end
+
+    test "infers the app from the path when the tool does not name one" do
+      assert {:ok, %{app: :web}} =
+               Finding.from_map(
+                 %{"file" => "apps/web/lib/user.ex", "message" => "x"},
+                 %{web: "apps/web"}
+               )
+    end
+
+    test "ignores an app ex_quality has never heard of" do
+      assert {:ok, %{app: nil}} =
+               Finding.from_map(%{
+                 "file" => "a.ex",
+                 "message" => "x",
+                 "app" => "no_such_app_here"
+               })
+    end
+
+    test "normalises an absolute path against the run's root" do
+      absolute = Path.join(File.cwd!(), "lib/user.ex")
+
+      assert {:ok, %{file: "lib/user.ex"}} =
+               Finding.from_map(%{"file" => absolute, "message" => "x"})
+    end
+
+    test "keeps the object each finding came from" do
+      {:ok, parsed} = Finding.from_map(%{"file" => "lib/a.ex", "message" => "no"})
+
+      assert parsed.raw =~ "lib/a.ex"
+    end
+  end
 end

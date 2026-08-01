@@ -84,6 +84,77 @@ defmodule ExQuality.Finding do
   def relative_path(path) when is_binary(path), do: Path.relative_to_cwd(path)
 
   @doc """
+  Builds a finding from a decoded JSON object, or returns `:error`.
+
+  This is the reading half of the encoding in `ExQuality.Report`: it is what a
+  custom stage's command uses to report structured findings, and what a
+  consumer of a report uses to read one back.
+
+  Only `file` and `message` are required, matching the struct's enforced keys.
+  Everything else is optional and takes the struct's default when it is absent
+  or the wrong shape, because a tool that got one field wrong should still have
+  its finding read rather than dropped.
+
+  `app` is inferred from the path against `apps` when the object does not name
+  one, which is what the built-in stages do anyway and is one less thing for a
+  custom tool to get wrong. Pass `ExQuality.Umbrella.apps_paths/0` as `apps`,
+  read once rather than once per finding.
+
+      iex> alias ExQuality.Finding
+      iex> {:ok, finding} = Finding.from_map(%{"file" => "lib/a.ex", "message" => "no"})
+      iex> {finding.file, finding.message, finding.severity}
+      {"lib/a.ex", "no", :warning}
+
+      iex> ExQuality.Finding.from_map(%{"message" => "nowhere to look"})
+      :error
+  """
+  @spec from_map(map(), %{atom() => String.t()}) :: {:ok, t()} | :error
+  def from_map(map, apps \\ %{})
+
+  def from_map(%{"file" => file, "message" => message} = map, apps)
+      when is_binary(file) and is_binary(message) do
+    path = relative_path(file)
+
+    {:ok,
+     %__MODULE__{
+       file: path,
+       line: coordinate(map["line"]),
+       column: coordinate(map["column"]),
+       app: app(map["app"]) || ExQuality.Umbrella.app_for_path(path, apps),
+       severity: severity(map["severity"]),
+       check: text(map["check"]),
+       message: message,
+       raw: text(map["raw"]) || Jason.encode!(map)
+     }}
+  end
+
+  def from_map(_other, _apps), do: :error
+
+  defp coordinate(value) when is_integer(value) and value > 0, do: value
+  defp coordinate(_other), do: nil
+
+  defp text(value) when is_binary(value) and value != "", do: value
+  defp text(_other), do: nil
+
+  # A tool naming an app ex_quality has never heard of is a tool that is wrong
+  # about the tree, not a reason to grow the atom table, so only apps that
+  # already exist as atoms are taken.
+  defp app(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp app(_other), do: nil
+
+  defp severity("error"), do: :error
+  defp severity("warning"), do: :warning
+  defp severity("info"), do: :info
+  # Anything else takes the struct's default rather than being invented, so an
+  # unknown level is still rendered rather than dropped.
+  defp severity(_other), do: :warning
+
+  @doc """
   Sorts findings by file, then line, then column.
 
   Findings without a line or column sort before those that have one, so a

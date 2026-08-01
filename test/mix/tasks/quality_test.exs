@@ -562,6 +562,219 @@ defmodule Mix.Tasks.QualityTest do
     end
   end
 
+  describe "custom stages" do
+    defmodule HouseRules do
+      @moduledoc false
+      def run(_config) do
+        %{
+          name: "House rules",
+          status: :ok,
+          output: "",
+          stats: %{},
+          summary: "Nothing to say",
+          duration_ms: 1
+        }
+      end
+    end
+
+    # Only the custom stages and the tests are of interest here, so every
+    # built-in analysis stage is off unless a test turns one back on.
+    @quiet [
+      credo: [enabled: false],
+      dialyzer: [enabled: false],
+      doctor: [enabled: false],
+      gettext: [enabled: false],
+      sobelow: [enabled: false],
+      dependencies: [enabled: false],
+      test: [coverage: false]
+    ]
+
+    defp with_custom(entries, extra \\ []) do
+      base = Keyword.merge([custom: entries] ++ @quiet, extra)
+
+      ExQuality.Config
+      |> stub(:load, fn opts ->
+        opts
+        |> Keyword.get_values(:skip)
+        |> Enum.reduce(base, fn key, config ->
+          Keyword.put(config, String.to_atom(key),
+            enabled: false,
+            disabled_by: {:cli, "--skip #{key}"}
+          )
+        end)
+      end)
+    end
+
+    defp stub_quiet_run(extra \\ fn _cmd, _args, _opts -> nil end) do
+      System
+      |> stub(:cmd, fn cmd, args, opts ->
+        case extra.(cmd, args, opts) do
+          nil -> quiet_cmd(cmd, args)
+          result -> result
+        end
+      end)
+    end
+
+    defp quiet_cmd("mix", ["test" | _]), do: {"1 tests, 0 failures\n", 0}
+    defp quiet_cmd(_cmd, _args), do: {"", 0}
+
+    test "a command stage runs and reports its findings" do
+      path = Path.join(System.tmp_dir!(), "quality-#{System.unique_integer([:positive])}.json")
+      on_exit(fn -> File.rm(path) end)
+
+      document =
+        Jason.encode!(%{
+          "summary" => "1 unsound claim",
+          "findings" => [
+            %{
+              "file" => "lib/my_app/contact.ex",
+              "line" => 14,
+              "severity" => "error",
+              "check" => "unsound",
+              "message" => "field :email is typed non-nil but the column is nullable"
+            }
+          ]
+        })
+
+      with_custom([
+        [
+          key: :nullability,
+          name: "Nullability",
+          command: "mix",
+          args: ["schema.nullability", "--format", "json"]
+        ]
+      ])
+
+      stub_quiet_run(fn
+        "mix", ["schema.nullability" | _], _opts -> {document, 1}
+        _cmd, _args, _opts -> nil
+      end)
+
+      captured = capture_io(fn -> run_failing(["--report", path]) end)
+
+      assert captured =~
+               "lib/my_app/contact.ex\n  14  [error] field :email is typed non-nil " <>
+                 "but the column is nullable (unsound)"
+
+      report = path |> File.read!() |> Jason.decode!()
+      stage = Enum.find(report["stages"], &(&1["name"] == "Nullability"))
+
+      assert stage["status"] == "error"
+      assert stage["summary"] == "1 unsound claim"
+      assert [%{"file" => "lib/my_app/contact.ex", "check" => "unsound"}] = stage["findings"]
+    end
+
+    test "a module stage runs" do
+      with_custom([[key: :house_rules, name: "House rules", module: HouseRules]])
+      stub_quiet_run()
+
+      assert capture_io(fn -> Quality.run([]) end) =~ "✓ House rules: Nothing to say"
+    end
+
+    test "a custom stage appears in the JSON report like any other" do
+      path = Path.join(System.tmp_dir!(), "quality-#{System.unique_integer([:positive])}.json")
+      on_exit(fn -> File.rm(path) end)
+
+      with_custom([[key: :house_rules, name: "House rules", module: HouseRules]])
+      stub_quiet_run()
+
+      capture_io(fn -> Quality.run(["--report", path]) end)
+
+      report = path |> File.read!() |> Jason.decode!()
+      stage = Enum.find(report["stages"], &(&1["name"] == "House rules"))
+
+      assert stage["status"] == "ok"
+      assert stage["summary"] == "Nothing to say"
+    end
+
+    test "--skip names a custom stage, which has no --skip-<key> of its own" do
+      with_custom([[key: :nullability, name: "Nullability", command: "mix"]])
+      stub_quiet_run()
+
+      captured = capture_io(fn -> Quality.run(["--skip", "nullability"]) end)
+
+      assert captured =~ "○ Nullability: skipped (--skip nullability)"
+      refute captured =~ "✓ Nullability"
+    end
+
+    test "--skip works for a built-in stage too" do
+      with_custom([], credo: [enabled: true, available: true])
+      stub_quiet_run()
+
+      captured = capture_io(fn -> Quality.run(["--skip", "credo"]) end)
+
+      assert captured =~ "○ Credo: skipped (--skip credo)"
+    end
+
+    test "enabled: false in the entry skips it and names the file" do
+      with_custom([[key: :nullability, name: "Nullability", command: "mix", enabled: false]])
+      stub_quiet_run()
+
+      captured = capture_io(fn -> Quality.run([]) end)
+
+      assert captured =~ "○ Nullability: skipped (disabled in .quality.exs)"
+    end
+
+    test "a custom writer finishes before any reader starts" do
+      with_custom([
+        [key: :codegen, name: "Codegen", command: "mix", args: ["gen.all"], kind: :writer]
+      ])
+
+      test_pid = self()
+
+      stub_quiet_run(fn
+        "mix", ["gen.all"], _opts ->
+          send(test_pid, {:cmd, :codegen_started})
+          Process.sleep(50)
+          send(test_pid, {:cmd, :codegen_finished})
+          {"", 0}
+
+        "mix", ["test" | _], _opts ->
+          send(test_pid, {:cmd, :test_started})
+          {"1 tests, 0 failures\n", 0}
+
+        _cmd, _args, _opts ->
+          nil
+      end)
+
+      capture_io(fn -> Quality.run([]) end)
+
+      events = drain_events()
+
+      assert :test_started in events
+      assert Enum.take_while(events, &(&1 != :codegen_finished)) == [:codegen_started]
+    end
+
+    test "a custom stage survives a failed compile as skipped, with the compile's reason" do
+      with_custom([[key: :nullability, name: "Nullability", command: "mix"]])
+
+      stub_quiet_run(fn
+        "mix", ["compile" | _], _opts -> {"** (CompileError) boom\n", 1}
+        _cmd, _args, _opts -> nil
+      end)
+
+      captured = capture_io(fn -> run_failing([]) end)
+
+      assert captured =~ "○ Nullability: skipped (compile failed)"
+    end
+
+    test "a command that is not applicable is reported as skipped, not failed" do
+      with_custom([
+        [key: :nullability, name: "Nullability", command: "mix", skip_exit_code: 2]
+      ])
+
+      stub_quiet_run(fn
+        "mix", [], _opts -> {"test database is not migrated\n", 2}
+        _cmd, _args, _opts -> nil
+      end)
+
+      captured = capture_io(fn -> Quality.run([]) end)
+
+      assert captured =~ "○ Nullability: skipped (test database is not migrated)"
+      assert captured =~ "All quality checks passed"
+    end
+  end
+
   # The runs above fail on purpose; the report is the thing under test, not
   # the exception Mix raises afterwards.
   defp run_failing(args) do

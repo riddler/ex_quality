@@ -48,7 +48,7 @@ the two can never disagree.
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `Format`, `Compile`, `Credo`, `Dialyzer`, `Dependencies`, `Doctor`, `Gettext`, `Sobelow`, `Tests` |
+| `name` | string | `Format`, `Compile`, `Credo`, `Dialyzer`, `Dependencies`, `Doctor`, `Gettext`, `Sobelow`, `Tests`, or a custom stage's own name |
 | `status` | `"ok"` \| `"error"` \| `"skipped"` | |
 | `summary` | string | the same one-line summary the console prints; for a skipped stage, the reason |
 | `stats` | object | stage-specific counts, `{}` when the stage has none |
@@ -71,11 +71,23 @@ reason in `summary`:
 }
 ```
 
-Reasons are the flag (`--quick`, `--skip-credo`), the missing package
-(`:gettext not installed`), `disabled in .quality.exs`, or `compile failed`.
+Reasons are the flag (`--quick`, `--skip-credo`, `--skip <key>`), the missing
+package (`:gettext not installed`), `disabled in .quality.exs`, `compile
+failed`, or - for a custom command declaring `skip_exit_code` - whatever the
+command itself said.
 
 **Every stage the run considered appears**, skipped ones included, so absence is
 never something a caller has to interpret.
+
+## Custom stages
+
+A project's custom stages appear in `stages[]` like any other, so **`name` is
+not one of a fixed nine** and a consumer must not switch on it exhaustively.
+Route on `status` and `findings`, and treat `name` as a label.
+
+A custom stage's `stats` are whatever its command reported, so the keys are its
+own rather than drawn from the built-in set. See
+[configuration.md](configuration.md#custom-stages).
 
 ## Finding
 

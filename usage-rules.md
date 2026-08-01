@@ -75,6 +75,7 @@ underlying tool to get detail that is already on screen.
 | Doctor | documentation coverage below the project's threshold | writing the missing `@moduledoc`/`@doc` |
 | Gettext | missing or fuzzy translations | translating them, or resolving the fuzzy entries |
 | any stage | `mix <task> is aliased in mix.exs` | renaming the alias, see below |
+| a custom stage | whatever the project's own check reports | fixing it at `file:line`; the check is the project's, so ask before changing what it enforces |
 | Sobelow | a security finding at or above the blocking threshold | fixing it at `file:line` |
 | Tests | a test failure, or modules under the coverage threshold | fixing the code, or writing tests for the named modules |
 
@@ -105,8 +106,14 @@ a red run because it removes the signal:
   `test_coverage`, and changing it is a decision for a human.
 - **Do not edit `.sobelow-conf`** to add an `ignore` or lower `exit:`. Silencing
   a security finding is a security decision, not a fix.
-- **Do not add `--skip-*` flags, or `enabled: false` in `.quality.exs`**, to get
-  past a failing stage.
+- **Do not add `--skip-*` or `--skip <key>` flags, or `enabled: false` in
+  `.quality.exs`**, to get past a failing stage.
+- **Do not convert a failing check into a custom stage in order to skip it.**
+  Moving a check somewhere it can be turned off is not fixing it.
+- **Do not use a custom stage to re-run a built-in tool with different flags.**
+  Its output comes back as text instead of per-check findings, which is the
+  routing the JSON report exists for. If a built-in stage cannot express
+  something its tool supports, that is a bug in the stage - report it.
 - **Do not delete, skip, or `@tag :skip` a failing test** to make the suite
   pass.
 - **Do not weaken a check** (`credo: [strict: false]`,
@@ -148,6 +155,9 @@ Every stage carries the same keys whatever its status:
 A skipped stage puts its reason in `summary`. A stage that failed without
 parseable findings carries its tool's output under `output` instead; for a
 failure, one of the two is always present.
+
+A project can add stages of its own, so `name` is not one of a fixed set. Route
+on `status` and `findings`; treat `name` as a label.
 
 ## Configuration
 

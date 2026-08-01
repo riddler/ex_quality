@@ -132,6 +132,34 @@ defmodule Integration.ExQualityTest do
       assert output =~ "Dialyzer: skipped (disabled in .quality.exs)"
       refute output =~ "✓ Dialyzer"
     end
+
+    test "runs the project's own stages and reports what they said" do
+      fixture_path = copy_fixture("with_config")
+
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path)
+
+      assert exit_code == 0, "Expected success. Output:\n#{output}"
+
+      # The command printed the finding contract, so its own summary is used.
+      assert output =~ "✓ House rules: No bare Logger calls"
+
+      # A prerequisite the run cannot know about is not a code problem.
+      assert output =~ "○ Prerequisite: skipped (nothing to check here)"
+    end
+
+    test "--skip reaches a custom stage, which has no --skip-<key> of its own" do
+      fixture_path = copy_fixture("with_config")
+
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path, ["--skip", "house_rules"])
+
+      assert exit_code == 0, "Expected success. Output:\n#{output}"
+      assert output =~ "○ House rules: skipped (--skip house_rules)"
+      refute output =~ "✓ House rules"
+    end
   end
 
   describe "umbrella fixture" do
