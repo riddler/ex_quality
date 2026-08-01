@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`compile: [force: true]`** compiles dev and test with `--force`, so a local run matches the cold build CI does. The usual argument for `--force` - that a warm build hides warnings - is obsolete, since Elixir re-emits persisted diagnostics for unchanged files. One class does survive: remove a public function and its callers are not recompiled, because a remote call is not a compile-time dependency, so nothing warns locally and CI fails. Off by default, since it costs a full recompile of the project's own apps on every run and is redundant in CI. The success summary names it (`dev + test compiled (forced, warnings as errors)`), and a forced run that passes stays as quiet as an incremental one
+
 ## [0.9.0] - 2026-08-01
 
 ### Added

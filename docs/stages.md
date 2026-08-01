@@ -36,6 +36,17 @@ as stages that passed.
 
 Set `compile: [warnings_as_errors: false]` to allow warnings.
 
+Set `compile: [force: true]` to compile with `--force`, so the local run matches
+the cold build CI does. An incremental build misses a whole class of breakage:
+remove a public function and its callers are not recompiled, because a remote
+call is not a compile-time dependency, so nothing warns locally and CI fails.
+The cost is a full recompile of the project's own apps on every run, which is
+why it is off by default and why it is worth turning on for a pre-push gate.
+
+```
+✓ Compile: dev + test compiled (forced, warnings as errors) (12.1s)
+```
+
 ## Credo
 
 Runs `mix credo --format json`, so an issue is never dropped for having an

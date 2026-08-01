@@ -277,6 +277,12 @@ defmodule ExQuality.ConfigTest do
 
       assert config[:compile][:warnings_as_errors] == true
     end
+
+    test "compile force defaults to false" do
+      config = Config.load()
+
+      assert config[:compile][:force] == false
+    end
   end
 
   defp write_config(tmp_dir, path) do
