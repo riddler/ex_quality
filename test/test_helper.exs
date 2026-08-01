@@ -1,5 +1,6 @@
 # Configure Mimic for mocking System.cmd/3 in unit tests
 Mimic.copy(System)
+Mimic.copy(ExQuality.Config)
 Mimic.copy(ExQuality.Tools)
 Mimic.copy(ExQuality.Umbrella)
 

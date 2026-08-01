@@ -242,6 +242,108 @@ defmodule Mix.Tasks.QualityTest do
     end
   end
 
+  describe "stages that write to the build are kept out of the parallel set" do
+    setup do
+      ExQuality.Tools
+      |> stub(:detect, fn ->
+        %{
+          credo: true,
+          dialyzer: true,
+          doctor: false,
+          gettext: true,
+          coverage: false,
+          audit: false,
+          sobelow: false
+        }
+      end)
+      |> stub(:available?, fn tool -> tool in [:credo, :dialyzer, :gettext] end)
+
+      :ok
+    end
+
+    test "the writer finishes before any reader starts" do
+      # Gettext's extraction recompiles the project, so a dialyzer reading the
+      # same build while it happens sees the beams change underneath it and
+      # reports an analysis that never ran.
+      ExQuality.Config
+      |> stub(:load, fn _opts -> [gettext: [extract: true], sobelow: [enabled: false]] end)
+
+      test_pid = self()
+
+      System
+      |> stub(:cmd, fn
+        "mix", ["gettext.extract", "--merge"], _opts ->
+          send(test_pid, {:cmd, :gettext_started})
+          Process.sleep(50)
+          send(test_pid, {:cmd, :gettext_finished})
+          {"", 0}
+
+        "mix", ["dialyzer" | _], opts ->
+          send(test_pid, {:cmd, :dialyzer_started})
+          _collected = Enum.into(["Total errors: 0"], opts[:into])
+          {opts[:into], 0}
+
+        "mix", ["credo" | _], _opts ->
+          send(test_pid, {:cmd, :credo_started})
+          {"", 0}
+
+        "mix", ["test" | _], _opts ->
+          send(test_pid, {:cmd, :test_started})
+          {"1 tests, 0 failures\n", 0}
+
+        _cmd, _args, _opts ->
+          {"", 0}
+      end)
+
+      capture_io(fn -> Quality.run([]) end)
+
+      events = drain_events()
+
+      assert :dialyzer_started in events
+      assert :credo_started in events
+
+      # Nothing else had started by the time the writer was done.
+      assert Enum.take_while(events, &(&1 != :gettext_finished)) == [:gettext_started]
+    end
+
+    test "a gettext that only reads stays in the parallel set" do
+      ExQuality.Config
+      |> stub(:load, fn _opts -> [sobelow: [enabled: false]] end)
+
+      test_pid = self()
+
+      System
+      |> stub(:cmd, fn
+        "mix", ["gettext.extract" | _], _opts ->
+          send(test_pid, {:cmd, :extracted})
+          {"", 0}
+
+        "mix", ["dialyzer" | _], opts ->
+          _collected = Enum.into(["Total errors: 0"], opts[:into])
+          {opts[:into], 0}
+
+        "mix", ["test" | _], _opts ->
+          {"1 tests, 0 failures\n", 0}
+
+        _cmd, _args, _opts ->
+          {"", 0}
+      end)
+
+      capture_io(fn -> Quality.run([]) end)
+
+      refute_received {:cmd, :extracted}
+    end
+
+    # The stage events in the order they happened.
+    defp drain_events(acc \\ []) do
+      receive do
+        {:cmd, event} -> drain_events([event | acc])
+      after
+        0 -> Enum.reverse(acc)
+      end
+    end
+  end
+
   describe "failure output uses findings when a stage supplies them" do
     test "renders credo issues grouped by file instead of raw tool output" do
       issues = [

@@ -268,19 +268,28 @@ defmodule Mix.Tasks.Quality do
       # reader knows what this run is not evidence for.
       Enum.each(skipped, &Printer.print_result/1)
 
-      tasks =
-        Enum.map(stages, fn {_stage, module, _name} ->
-          Task.async(fn ->
-            result = module.run(config)
-            Printer.print_result(result)
-            result
-          end)
+      {writers, readers} =
+        Enum.split_with(stages, fn {_stage, module, _name} ->
+          Stage.kind(module, config) == :writer
         end)
 
-      skipped ++ Enum.map(tasks, &Task.await(&1, :infinity))
+      # Writers go first, one at a time. A stage that recompiles the project
+      # rewrites the beams the readers are part-way through, and the reader
+      # that notices reports a failure about the build rather than the code.
+      writer_results = Enum.map(writers, &run_stage(&1, config))
+
+      tasks = Enum.map(readers, fn stage -> Task.async(fn -> run_stage(stage, config) end) end)
+
+      skipped ++ writer_results ++ Enum.map(tasks, &Task.await(&1, :infinity))
     after
       Printer.stop()
     end
+  end
+
+  defp run_stage({_stage, module, _name}, config) do
+    result = module.run(config)
+    Printer.print_result(result)
+    result
   end
 
   # Every optional stage is either run or reported as skipped with its reason.

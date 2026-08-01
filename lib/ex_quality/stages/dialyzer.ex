@@ -36,6 +36,29 @@ defmodule ExQuality.Stages.Dialyzer do
   A build is reported, not penalised: the analysis that follows one is as good
   as any other, so the stage still passes or fails on its warnings alone.
   `mix quality.plt` is the way to pay for the build outside the run.
+
+  ## Analyses that never ran
+
+  `--no-compile` assumes the beams hold still. If something rewrites them while
+  dialyzer is reading them, dialyzer stops with
+  `Could not get Core Erlang code for: ... Recompile with +debug_info` and
+  reports nothing at all.
+
+  That is the same message a genuine no-debug_info dependency produces, and
+  that one is worth passing over. The two are told apart by whether the
+  analysis reached its own summary: dialyxir prints `Total errors: N` when it
+  finished, even for N = 0. No summary means the analysis did not complete, and
+  a stage that parsed zero findings because it never looked is not a stage that
+  passed.
+
+  ## Umbrellas
+
+  dialyxir prints paths relative to each child app while running one analysis
+  from the umbrella root, and there are no `==> app` headers to attribute from.
+  A path like `lib/user.ex` therefore does not open from where the report was
+  generated. Each one is resolved against the child apps by existence: exactly
+  one match rewrites the path and names the app, and anything else is left
+  alone rather than guessed at.
   """
 
   alias ExQuality.Finding
@@ -70,25 +93,35 @@ defmodule ExQuality.Stages.Dialyzer do
         result(output, :ok, [], summary("No warnings", plt_built?), plt_built?, duration_ms)
 
       {_exit_code, []} ->
-        # Non-zero exit but no warnings found - could be PLT building or other issue
-        # Check if it's the common "Could not get Core Erlang code" error for Mix tasks
-        if debug_info_error?(output) do
-          # This is a known issue with Mix tasks not having debug_info
-          # Treat as success if there are no actual type warnings
-          summary = summary("No warnings", plt_built?, "some files skipped")
-
-          result(output, :ok, [], summary, plt_built?, duration_ms)
-        else
-          # Unknown error with no warnings - report as error
-          summary = summary("Check failed", plt_built?, "see output")
-
-          result(output, :error, [], summary, plt_built?, duration_ms)
-        end
+        empty_result(output, plt_built?, duration_ms)
 
       {_exit_code, findings} ->
         summary = summary(format_warnings(length(findings)), plt_built?)
 
         result(output, :error, findings, summary, plt_built?, duration_ms)
+    end
+  end
+
+  # A non-zero exit with nothing parsed is either "a few files had no
+  # debug_info", which is fine, or "the analysis never ran", which is not. The
+  # summary line dialyxir prints when it finishes is what tells them apart.
+  defp empty_result(output, plt_built?, duration_ms) do
+    cond do
+      debug_info_error?(output) and analysis_completed?(output) ->
+        summary = summary("No warnings", plt_built?, "some files skipped")
+
+        result(output, :ok, [], summary, plt_built?, duration_ms)
+
+      debug_info_error?(output) ->
+        summary =
+          summary("Analysis did not complete", plt_built?, "build changed under it? see output")
+
+        result(output, :error, [], summary, plt_built?, duration_ms)
+
+      true ->
+        summary = summary("Check failed", plt_built?, "see output")
+
+        result(output, :error, [], summary, plt_built?, duration_ms)
     end
   end
 
@@ -155,14 +188,14 @@ defmodule ExQuality.Stages.Dialyzer do
   defp finding(line, apps) do
     case Regex.run(@warning_regex, line) do
       [_match, file, line_no, column, warning, message] ->
-        file = Finding.relative_path(file)
+        {file, app} = file |> Finding.relative_path() |> locate(apps)
 
         [
           %Finding{
             file: file,
             line: String.to_integer(line_no),
             column: position(column),
-            app: Umbrella.app_for_path(file, apps),
+            app: app,
             # Every dialyzer warning fails the stage, so none of them is
             # informational.
             severity: :error,
@@ -181,10 +214,32 @@ defmodule ExQuality.Stages.Dialyzer do
   defp position(""), do: nil
   defp position(column), do: String.to_integer(column)
 
+  # A path that already names its app is taken as it stands. One that does not
+  # is an app-relative path from an umbrella run, and the app it belongs to is
+  # the one that has the file. Two apps with the same relative path is
+  # ambiguous, and a wrong app is worse than none, so it is left alone.
+  defp locate(file, apps) do
+    case Umbrella.app_for_path(file, apps) do
+      nil -> resolve_in_apps(file, apps)
+      app -> {file, app}
+    end
+  end
+
+  defp resolve_in_apps(file, apps) do
+    case Enum.filter(apps, fn {_app, path} -> File.exists?(Path.join(path, file)) end) do
+      [{app, path}] -> {Path.join(path, file), app}
+      _none_or_many -> {file, nil}
+    end
+  end
+
   defp debug_info_error?(output) do
     String.contains?(output, "Could not get Core Erlang code") and
       String.contains?(output, "Recompile with +debug_info")
   end
+
+  # dialyxir closes a completed analysis with its own tally, whatever the tally
+  # is. Its absence is the difference between "found nothing" and "never ran".
+  defp analysis_completed?(output), do: String.contains?(output, "Total errors:")
 
   defp format_warnings(1), do: "1 warning"
   defp format_warnings(count), do: "#{count} warnings"
