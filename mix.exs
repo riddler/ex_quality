@@ -58,10 +58,13 @@ defmodule ExQuality.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      # `assets` is deliberately absent: HexDocs is built from the checkout at
-      # publish time, so the mark reaches the docs without every project that
-      # depends on this one downloading it.
-      files: ~w(lib docs .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md)
+      # Only the one asset the README references. hex.pm renders the README
+      # from the tarball and resolves its relative paths against it, so the
+      # mark has to ship or the package page shows a broken image. The rest of
+      # `assets` stays out: HexDocs is built from the checkout at publish time,
+      # so it reaches the docs without every dependent downloading it.
+      files:
+        ~w(lib docs .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md assets/ex_quality.svg)
     ]
   end
 
