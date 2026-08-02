@@ -20,29 +20,11 @@ text and inferring what is missing from them.
 
 ExQuality normalises that. One run, one stream, one shape per stage:
 
-```
-Running quality checks...
+![A mix quality run: green passing stages, dim skipped stages, and a red failing stage with its finding printed below](https://raw.githubusercontent.com/riddler/ex_quality/main/assets/example-output.svg)
 
-✓ Format: No changes needed (458ms)
-✓ Compile: dev + test compiled (warnings as errors) (325ms)
-
-Running analysis stages in parallel...
-
-○ Dialyzer: skipped (--quick)
-○ Gettext: skipped (:gettext not installed)
-○ Sobelow: skipped (:sobelow not installed)
-✓ Doctor: Passed (519ms)
-✓ Credo: No issues (775ms)
-✗ Dependencies: 1 vulnerability (1 moderate) (2.5s)
-✓ Tests: 345 of 345 passed (4.1s)
-
-────────────────────────────────────────────────────────────
-Dependencies - FAILED
-────────────────────────────────────────────────────────────
-mix.lock
-  -  [error] decimal 2.3.0: Unbounded exponent in `Decimal.new` enables
-     unauthenticated DoS (moderate severity, patched in 3.0.0) (GHSA-rhv4-8758-jx7v)
-```
+Colour is a second channel over the `✓`, `○` and `✗`, never a replacement for
+one. It is dropped when the output is not a terminal, so a CI log or a piped run
+reads exactly the same minus the paint.
 
 Three properties follow from that, and they are what the tool is for:
 

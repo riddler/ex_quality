@@ -57,11 +57,13 @@ defmodule ExQuality.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      # Only the one asset the README references. hex.pm renders the README
-      # from the tarball and resolves its relative paths against it, so the
-      # mark has to ship or the package page shows a broken image. The rest of
-      # `assets` stays out: HexDocs is built from the checkout at publish time,
-      # so it reaches the docs without every dependent downloading it.
+      # Only the one asset the README references by a relative path. hex.pm
+      # renders the README from the tarball and resolves its relative paths
+      # against it, so the mark has to ship or the package page shows a broken
+      # image. The example-output image is referenced by absolute URL for that
+      # same reason and so does not ship. The rest of `assets` stays out:
+      # HexDocs is built from the checkout at publish time, so it reaches the
+      # docs without every dependent downloading it.
       files:
         ~w(lib docs .formatter.exs mix.exs README.md LICENSE CHANGELOG.md usage-rules.md assets/ex_quality.svg)
     ]
