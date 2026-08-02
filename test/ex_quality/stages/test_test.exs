@@ -917,6 +917,91 @@ defmodule ExQuality.Stages.TestTest do
     end
   end
 
+  describe "run/1 - scoped runs" do
+    # A glob over files that really exist, so the scope resolves without a git
+    # working tree to set up. `:changed` resolution is covered in ScopeTest.
+    @glob "test/ex_quality/stages/co*_test.exs"
+    @scoped_files [
+      "test/ex_quality/stages/command_test.exs",
+      "test/ex_quality/stages/compile_test.exs"
+    ]
+
+    setup do
+      ExQuality.Tools |> stub(:available?, fn _tool -> true end)
+
+      :ok
+    end
+
+    test "runs only the test files in scope" do
+      System
+      |> expect(:cmd, fn "mix", args, _opts ->
+        assert args == ["test" | @scoped_files]
+        {"2 tests, 0 failures\n", 0}
+      end)
+
+      result = Test.run(test: [scope: @glob])
+
+      assert result.status == :ok
+      assert result.meta.scope == @glob
+      assert result.meta.files == 2
+      assert result.meta.test_files == @scoped_files
+    end
+
+    test "never measures coverage on a scoped run, even with coveralls available" do
+      System
+      |> expect(:cmd, fn "mix", ["test" | _files], _opts -> {"2 tests, 0 failures\n", 0} end)
+
+      result = Test.run(test: [scope: @glob, coverage: true])
+
+      assert result.meta.coverage == "skipped"
+      assert result.meta.coverage_reason == "not measured on a scoped run"
+      refute Map.has_key?(result.stats, :coverage)
+    end
+
+    test "says in the summary what it did and did not cover" do
+      System
+      |> expect(:cmd, fn "mix", ["test" | _files], _opts -> {"2 tests, 0 failures\n", 0} end)
+
+      result = Test.run(test: [scope: @glob])
+
+      assert result.summary == "2 of 2 passed (scope #{@glob}, 2 files, no coverage)"
+    end
+
+    test "passes configured test args ahead of the paths" do
+      System
+      |> expect(:cmd, fn "mix", args, _opts ->
+        assert args == ["test", "--seed", "0"] ++ @scoped_files
+        {"2 tests, 0 failures\n", 0}
+      end)
+
+      Test.run(test: [scope: @glob, args: ["--seed", "0"]])
+    end
+
+    test "runs the full suite when the scope resolves to nothing" do
+      System
+      |> expect(:cmd, fn "mix", ["coveralls"], _opts -> {"2 tests, 0 failures\n", 0} end)
+
+      result = Test.run(test: [scope: "test/nowhere/**/*_test.exs"])
+
+      assert result.meta.scope == "all"
+      assert result.meta.requested_scope == "test/nowhere/**/*_test.exs"
+      assert result.meta.fallback_reason == "the glob matched no test files"
+      refute Map.has_key?(result.meta, :coverage)
+
+      assert result.summary =~ "fell back to the full suite"
+    end
+
+    test "an unscoped run reports the scope it ran at" do
+      System
+      |> expect(:cmd, fn "mix", ["coveralls"], _opts -> {"2 tests, 0 failures\n", 0} end)
+
+      result = Test.run([])
+
+      assert result.meta == %{scope: "all"}
+      assert result.summary == "2 of 2 passed"
+    end
+  end
+
   defp umbrella_export_output do
     """
     ==> one

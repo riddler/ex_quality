@@ -7,10 +7,13 @@ the tool.
 ```bash
 mix quality --report .quality.json   # human output on stdout, report to a file
 mix quality --format json            # report on stdout, human output on stderr
+mix quality --report -               # the same, spelled the way a pipe reads
 ```
 
-Both can be given at once. `--report` is usually the more useful of the two,
-because it leaves the human stream intact.
+Both of the first two can be given at once. `--report PATH` is usually the more
+useful, because it leaves the human stream intact. `--report -` is `--format
+json` under another name: the report takes stdout and the human output moves to
+stderr, rather than the two being interleaved into something nothing can parse.
 
 The report is built from the same results the human output is rendered from, so
 the two can never disagree.
@@ -22,6 +25,9 @@ the two can never disagree.
   "status": "error",
   "version": "0.6.0",
   "duration_ms": 5014,
+  "profile": "loop",
+  "scope": "changed",
+  "base_ref": "origin/main",
   "stages": []
 }
 ```
@@ -31,7 +37,21 @@ the two can never disagree.
 | `status` | `"ok"` \| `"error"` | `"error"` if any stage failed |
 | `version` | string | the ExQuality version that produced the report |
 | `duration_ms` | integer | wall clock time of the whole run, which is **not** the sum of the stage durations, because the analysis stages run in parallel |
+| `profile` | string \| null | the `--profile` the run used |
+| `scope` | string | how much of the suite ran: `"all"`, `"changed"`, or the glob |
+| `base_ref` | string \| null | what `"changed"` was measured against |
 | `stages` | array | every stage the run considered, in the order it reported them |
+
+`status` alone does not say what a run is evidence for. A green run scoped to
+three test files and a green full run are different claims, so **anything that
+ratchets a recorded number, moves a baseline, or gates a merge has to check
+`scope` and refuse to move on anything but `"all"`.** That is what the field is
+for.
+
+`scope` is the scope the run *achieved*. A `:changed` run that resolved to no
+test files ran the whole suite, so it reports `"all"` and puts the request on the
+Tests stage as `requested_scope` with a `fallback_reason` beside it. A caller
+checking `scope == "all"` never has to reason about fallbacks.
 
 ## Stage
 
@@ -78,6 +98,46 @@ command itself said.
 
 **Every stage the run considered appears**, skipped ones included, so absence is
 never something a caller has to interpret.
+
+## The Tests stage
+
+The Tests stage carries what it ran as well as what it found, because a test
+count says nothing about how much of the suite produced it:
+
+```json
+{
+  "name": "Tests",
+  "status": "ok",
+  "summary": "12 of 12 passed (scope changed, 3 files vs origin/main, no coverage)",
+  "scope": "changed",
+  "files": 3,
+  "test_files": [
+    "test/user_test.exs",
+    "test/user/email_test.exs",
+    "test/accounts_test.exs"
+  ],
+  "base_ref": "origin/main",
+  "coverage": "skipped",
+  "coverage_reason": "not measured on a scoped run",
+  "stats": {"test_count": 12, "passed_count": 12, "failed_count": 0},
+  "findings": [],
+  "duration_ms": 2800
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `scope` | string | always present, `"all"` for a full run |
+| `files` | integer | how many test files ran; absent on a full run |
+| `test_files` | array | which ones; absent on a full run |
+| `base_ref` | string | absent unless a diff was taken |
+| `coverage` | `"skipped"` | present only on a scoped run, where coverage is **absent rather than lower** |
+| `coverage_reason` | string | why it was not measured |
+| `requested_scope` | string | present only when the run fell back to the full suite |
+| `fallback_reason` | string | why it fell back, e.g. `no test files map to the changed files` |
+
+A scoped run never reports a coverage percentage in `stats`. See
+[Test scope](configuration.md#test-scope).
 
 ## Custom stages
 

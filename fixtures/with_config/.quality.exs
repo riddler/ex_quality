@@ -7,6 +7,13 @@
   dialyzer: [
     enabled: false
   ],
+  profiles: [
+    # A named fast path. Everything else, including the project's own stages, is
+    # reported as skipped naming the profile.
+    loop: [stages: [:format, :compile, :credo]],
+    # A profile that only carries options narrows nothing.
+    gate: []
+  ],
   custom: [
     # A command stage printing the JSON finding contract.
     [

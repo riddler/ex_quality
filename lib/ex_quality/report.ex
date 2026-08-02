@@ -17,6 +17,9 @@ defmodule ExQuality.Report do
         "version": "0.6.0",
         "status": "error",
         "duration_ms": 48213,
+        "profile": "loop",
+        "scope": "changed",
+        "base_ref": "origin/main",
         "stages": [
           {
             "name": "Credo",
@@ -49,15 +52,28 @@ defmodule ExQuality.Report do
   under `output` instead, mirroring the human renderer. Findings are the parsed
   form; `output` is the fallback, and one of the two is always present for a
   failure.
+
+  ## How much the run covered
+
+  `profile`, `scope` and `base_ref` are always present at the root, `null` when
+  they do not apply. They are what makes `"status": "ok"` interpretable: a green
+  run scoped to three test files is not the same claim as a green full run, and a
+  caller that lowers a recorded coverage figure or moves a baseline on a green
+  run has to be able to refuse the narrow one. The test stage repeats them, plus
+  the files it ran, in its own object. See `ExQuality.Scope`.
   """
 
   alias ExQuality.Finding
+  alias ExQuality.Scope
   alias ExQuality.Stage
 
   @type t :: %{
           version: String.t(),
           status: String.t(),
           duration_ms: non_neg_integer(),
+          profile: String.t() | nil,
+          scope: String.t() | nil,
+          base_ref: String.t() | nil,
           stages: [map()]
         }
 
@@ -67,20 +83,51 @@ defmodule ExQuality.Report do
   `duration_ms` is the wall clock time of the whole run, which is not the sum
   of the stage durations because the analysis stages run in parallel.
 
+  `config` is the run's loaded config, used for the root `profile` and for the
+  scope when the test stage did not run to report one of its own.
+
       iex> alias ExQuality.{Report, Stage}
       iex> report = Report.build([Stage.skipped("Dialyzer", "--quick")], 12)
       iex> {report.status, report.duration_ms, length(report.stages)}
       {"ok", 12, 1}
+
+      iex> alias ExQuality.{Report, Stage}
+      iex> report = Report.build([Stage.skipped("Tests", "--skip test")], 12, profile: :loop)
+      iex> {report.profile, report.scope}
+      {"loop", "all"}
   """
-  @spec build([Stage.result()], non_neg_integer()) :: t()
-  def build(results, duration_ms) do
+  @spec build([Stage.result()], non_neg_integer(), keyword()) :: t()
+  def build(results, duration_ms, config \\ []) do
+    coverage = coverage(results, config)
+
     %{
       version: version(),
       status: overall_status(results),
       duration_ms: duration_ms,
+      profile: config |> Keyword.get(:profile) |> maybe_string(),
+      scope: coverage.scope,
+      base_ref: coverage.base_ref,
       stages: Enum.map(results, &stage/1)
     }
   end
+
+  # The test stage is the only stage that narrows scope, so its own account of
+  # what it ran is the root's. A run where it did not run at all reports what was
+  # asked for, which is the closest thing to true available.
+  defp coverage(results, config) do
+    meta =
+      results
+      |> Enum.find(%{}, &(&1.name == "Tests"))
+      |> Map.get(:meta, %{})
+
+    %{
+      scope: Map.get(meta, :scope) || Scope.describe(Scope.from_config(config)),
+      base_ref: Map.get(meta, :base_ref)
+    }
+  end
+
+  defp maybe_string(nil), do: nil
+  defp maybe_string(value), do: to_string(value)
 
   @doc """
   Encodes a report as pretty-printed JSON, newline terminated.
@@ -115,6 +162,7 @@ defmodule ExQuality.Report do
       stats: stats(result.stats),
       findings: Enum.map(findings, &finding/1)
     }
+    |> Map.merge(Map.get(result, :meta, %{}))
     |> put_output(result, findings)
   end
 

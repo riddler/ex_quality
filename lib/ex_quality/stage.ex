@@ -16,6 +16,15 @@ defmodule ExQuality.Stage do
   1. If `findings` is non-empty, render the findings.
   2. Otherwise, print `output` verbatim. Unparseable output is never hidden.
 
+  ## Metadata
+
+  A stage may also return `meta`, a map of extra report fields describing *what
+  the stage did* rather than what it found. The test stage uses it to say how
+  much of the suite it ran, because `"status": "ok"` over three test files and
+  `"status": "ok"` over the whole suite are different claims and a consumer has
+  to be able to tell them apart. Keys are merged into the stage's object in the
+  JSON report.
+
   ## Skipped stages
 
   A stage that was considered and not run returns a `:skipped` result carrying
@@ -74,7 +83,8 @@ defmodule ExQuality.Stage do
           required(:stats) => stats(),
           required(:summary) => String.t(),
           required(:duration_ms) => non_neg_integer(),
-          optional(:findings) => [Finding.t()]
+          optional(:findings) => [Finding.t()],
+          optional(:meta) => %{atom() => term()}
         }
 
   @doc """

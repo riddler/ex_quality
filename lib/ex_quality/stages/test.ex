@@ -64,10 +64,30 @@ defmodule ExQuality.Stages.Test do
   are the ones a reader acts on. Modules are reported only when the run actually
   failed on coverage, because the threshold applies to the total: a passing run
   can hold a low module and there is nothing to do about it.
+
+  ## Scoped runs
+
+  `test: [scope: :changed]`, or `--test-scope changed`, runs only the test files
+  covering the code that changed. This is the whole reason an agent can afford to
+  run checks between edits: the suite is most of a run's wall clock, and a
+  one-file change needs a handful of files rather than all of them. See
+  `ExQuality.Scope`, which owns resolving the scope and the rule that an empty
+  resolution runs the full suite rather than reporting a green run of nothing.
+
+  Coverage in a scoped run is not lower, it is **absent**. It is reported as
+  `skipped` with a reason and never as a number, because a percentage measured
+  over a subset of the suite is not a smaller truth, it is a different and
+  misleading one, and anything downstream that ratchets a recorded figure would
+  lower it against a run that never measured.
+
+  The result carries what the run actually covered under `meta`, so a
+  `"status": "ok"` in the report can be interpreted rather than assumed to be a
+  full green.
   """
 
   alias ExQuality.Aliases
   alias ExQuality.Finding
+  alias ExQuality.Scope
   alias ExQuality.Umbrella
 
   # Elixir's documented aggregation workflow names the export "default", and
@@ -83,16 +103,26 @@ defmodule ExQuality.Stages.Test do
   - `test.args` - Extra arguments for the test command (default: `[]`)
   - `test.coverage` - `:auto` (use the project's config) | `true` (always
     measure) | `false` (never measure) (default: `:auto`)
+  - `test.scope` - `:all` | `:changed` | a glob string (default: `:all`)
+  - `test.base_ref` - What `:changed` is measured against (default: the
+    repository's default branch)
   """
   @spec run(keyword()) :: ExQuality.Stage.result()
   def run(config) do
-    mode = coverage_mode(config)
+    scope = resolve_scope(config)
+    mode = coverage_mode(config, scope)
 
     if aggregating?(mode) and Aliases.shadowing?("test.coverage") do
       Aliases.shadowed("Tests", "test.coverage")
     else
-      test(config, mode)
+      test(config, mode, scope)
     end
+  end
+
+  defp resolve_scope(config) do
+    base_ref = config |> Keyword.get(:test, []) |> Keyword.get(:base_ref)
+
+    config |> Scope.from_config() |> Scope.resolve(base_ref: base_ref)
   end
 
   # A `test:` alias is near-universal and running it is correct: it does the
@@ -101,12 +131,12 @@ defmodule ExQuality.Stages.Test do
   # only trace is a doubled test count and a doubled wall clock.
   defp aggregating?(mode), do: mode == :native and Umbrella.umbrella?()
 
-  defp test(config, mode) do
+  defp test(config, mode, scope) do
     start_time = System.monotonic_time(:millisecond)
 
     test_args = config |> Keyword.get(:test, []) |> Keyword.get(:args, [])
 
-    {output, exit_code} = run_tests(mode, test_args)
+    {output, exit_code} = run_tests(mode, test_args, scope.files)
 
     duration_ms = System.monotonic_time(:millisecond) - start_time
     %{stats: stats, findings: findings} = analyze(output, mode)
@@ -117,18 +147,21 @@ defmodule ExQuality.Stages.Test do
       output: output,
       findings: findings,
       stats: stats,
-      summary: summary(stats, mode, exit_code),
-      duration_ms: duration_ms
+      summary: summary(stats, mode, exit_code) <> scope_summary(scope),
+      duration_ms: duration_ms,
+      meta: meta(scope, mode)
     }
   end
 
   # `:coveralls` and `:native` differ only in which tool measures; `:plain`
-  # means nothing measures.
-  defp coverage_mode(config) do
+  # means nothing measures. A scoped run is always `:plain`: see the moduledoc
+  # on why a subset percentage is worse than no percentage.
+  defp coverage_mode(config, scope) do
     test_config = Keyword.get(config, :test, [])
     requested = Keyword.get(test_config, :coverage, :auto)
 
     cond do
+      scope.files != :all -> :plain
       Keyword.get(config, :quick, false) -> :plain
       requested == false -> :plain
       ExQuality.Tools.available?(:coverage) -> :coveralls
@@ -139,9 +172,9 @@ defmodule ExQuality.Stages.Test do
     end
   end
 
-  defp run_tests(:coveralls, args), do: mix(["coveralls" | args])
+  defp run_tests(:coveralls, args, :all), do: mix(["coveralls" | args])
 
-  defp run_tests(:native, args) do
+  defp run_tests(:native, args, :all) do
     if Umbrella.umbrella?() do
       run_umbrella_coverage(args)
     else
@@ -149,7 +182,15 @@ defmodule ExQuality.Stages.Test do
     end
   end
 
-  defp run_tests(_plain, args), do: mix(["test" | args])
+  # Paths last, so an argument that takes a value cannot swallow one. In an
+  # umbrella the paths are relative to the root and `mix test` routes each to the
+  # app that owns it, skipping the apps no path names.
+  defp run_tests(_plain, args, files) do
+    mix(["test"] ++ args ++ paths(files))
+  end
+
+  defp paths(:all), do: []
+  defp paths(files), do: files
 
   # Exporting suppresses the summary and the threshold check, so the aggregate
   # run is where coverage is decided. A failing suite skips it: mix stops at the
@@ -525,6 +566,63 @@ defmodule ExQuality.Stages.Test do
       _module -> Mix.Project.build_path() |> Path.dirname() |> Path.join("test")
     end
   end
+
+  # What the run covered, for the report. Always carries `scope`, including on a
+  # full run: a consumer that has to branch on whether the key is there cannot
+  # tell "full suite" from "an older ExQuality that never said".
+  defp meta(scope, mode) do
+    %{scope: Scope.describe(scope.scope)}
+    |> put_files(scope)
+    |> put_base_ref(scope)
+    |> put_coverage(scope, mode)
+  end
+
+  defp put_base_ref(meta, %{base_ref: nil}), do: meta
+  defp put_base_ref(meta, %{base_ref: ref}), do: Map.put(meta, :base_ref, ref)
+
+  # The count and the list: a count says how narrow the run was, and the list is
+  # what makes it checkable. Both are bounded by the size of the change.
+  defp put_files(meta, %{fallback_reason: nil, files: files}) when is_list(files) do
+    Map.merge(meta, %{files: length(files), test_files: files})
+  end
+
+  defp put_files(meta, %{fallback_reason: nil}), do: meta
+
+  # A run that fell back reports the scope it achieved, with the request and the
+  # reason beside it. Nothing downstream should treat it as narrowed, because it
+  # was not.
+  defp put_files(meta, scope) do
+    Map.merge(meta, %{
+      requested_scope: Scope.describe(scope.requested_scope),
+      fallback_reason: scope.fallback_reason
+    })
+  end
+
+  defp put_coverage(meta, %{files: files}, :plain) when is_list(files) do
+    Map.merge(meta, %{coverage: "skipped", coverage_reason: "not measured on a scoped run"})
+  end
+
+  defp put_coverage(meta, _scope, _mode), do: meta
+
+  # Base refs are only interesting when a diff was taken against one.
+  defp base_ref_summary(%{base_ref: nil}), do: ""
+  defp base_ref_summary(%{base_ref: ref}), do: " vs #{ref}"
+
+  defp scope_summary(%{scope: :all, requested_scope: :all}), do: ""
+
+  defp scope_summary(%{fallback_reason: reason} = scope) when is_binary(reason) do
+    " (scope #{Scope.describe(scope.requested_scope)} fell back to the full suite: #{reason})"
+  end
+
+  defp scope_summary(%{files: files} = scope) when is_list(files) do
+    " (scope #{Scope.describe(scope.scope)}, #{length(files)} #{pluralize(files, "file")}" <>
+      base_ref_summary(scope) <> ", no coverage)"
+  end
+
+  defp scope_summary(_scope), do: ""
+
+  defp pluralize([_one], word), do: word
+  defp pluralize(_many, word), do: word <> "s"
 
   defp summary(stats, mode, 0), do: format_success_summary(stats, mode)
   defp summary(stats, mode, _error), do: format_failure_summary(stats, mode)

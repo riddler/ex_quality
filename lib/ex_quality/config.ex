@@ -6,7 +6,8 @@ defmodule ExQuality.Config do
   1. Defaults
   2. Auto-detected tool availability
   3. Project config file (.quality.exs, read from the project root)
-  4. CLI arguments
+  4. The selected profile, if `--profile` named one
+  5. CLI arguments
 
   ## Example .quality.exs
 
@@ -26,6 +27,12 @@ defmodule ExQuality.Config do
         # Doctor options
         doctor: [
           summary_only: true
+        ],
+
+        # Named bundles, selected with `mix quality --profile loop`
+        profiles: [
+          loop: [stages: [:format, :compile, :credo], test: [scope: :changed]],
+          gate: []
         ]
       ]
 
@@ -34,6 +41,7 @@ defmodule ExQuality.Config do
   ### Global Options
 
   - `quick` - Quick mode: skip dialyzer and coverage enforcement (default: false)
+  - `profiles` - Named option bundles, see "Profiles" below (default: `[]`)
 
   ### Stage Options
 
@@ -61,11 +69,42 @@ defmodule ExQuality.Config do
     counting them (default: false)
   - `test.coverage` - :auto (measure when the project's config asks for it) |
     true (always measure) | false (never measure) (default: :auto)
+  - `test.scope` - :all (the whole suite) | :changed (only the test files
+    covering changed code) | a glob string (default: :all)
+  - `test.base_ref` - What `scope: :changed` is measured against (default: the
+    repository's default branch)
+
+  ## Profiles
+
+  A profile is a named bundle of the options above, so the fast path a project
+  wants its agents to use has a name its docs can point at:
+
+      profiles: [
+        loop: [stages: [:format, :compile, :credo], test: [scope: :changed]],
+        gate: []
+      ]
+
+  `mix quality --profile loop` merges the profile over the config file and under
+  the CLI, so a switch still wins over the profile that a run selected.
+
+  `stages:` is the allow-list of stage keys for the profile. Every other stage,
+  built-in or custom, is reported as skipped naming the profile. A profile with
+  no `stages:` key narrows nothing and only carries options, which is what an
+  empty `gate: []` is for.
+
+  An invocation with no `--profile` behaves exactly as it does without any
+  profiles configured. An unknown profile name fails the run: falling back to
+  "run everything" would turn a typo into a slow green, and falling back to the
+  profile's intent would turn one into a fast green over nothing.
   """
 
   @defaults [
     # Global options
     quick: false,
+
+    # Named option bundles, selected with --profile. Empty by default: this is
+    # a 0.x library with real users, and the unprofiled path does not move.
+    profiles: [],
 
     # Stage-specific options
     compile: [
@@ -115,7 +154,12 @@ defmodule ExQuality.Config do
       # threshold comes from the tool's own config, not from here.
       # In quick mode: runs mix test only (no coverage enforcement)
       coverage: :auto,
-      args: []
+      args: [],
+      # How much of the suite to run. See `ExQuality.Scope`. :all is what an
+      # unscoped run has always done, and narrowing is opt-in because a scope
+      # that resolves to nothing is the one way this could report a false green.
+      scope: :all,
+      base_ref: nil
     ]
   ]
 
@@ -126,7 +170,8 @@ defmodule ExQuality.Config do
   1. Defaults
   2. Auto-detected tool availability
   3. .quality.exs file
-  4. CLI arguments
+  4. The profile named by `--profile`, if any
+  5. CLI arguments
 
   ## Examples
 
@@ -147,6 +192,7 @@ defmodule ExQuality.Config do
       defaults
       |> deep_merge(detected)
       |> deep_merge(file_config)
+      |> apply_profile(Keyword.get(cli_opts, :profile))
       |> deep_merge(cli_config)
 
     # A custom stage that is malformed does not register, and a stage that does
@@ -155,6 +201,125 @@ defmodule ExQuality.Config do
     ExQuality.Custom.validate!(config)
 
     config
+  end
+
+  @doc """
+  Returns the name of the profile a loaded config was resolved with, or `nil`.
+
+      iex> ExQuality.Config.profile(ExQuality.Config.load())
+      nil
+  """
+  @spec profile(keyword()) :: atom() | nil
+  def profile(config), do: Keyword.get(config, :profile)
+
+  @doc """
+  Merges the named profile into a config, or returns it unchanged for `nil`.
+
+  Called by `load/1` between the config file and the CLI. `name` is a string
+  because it comes from a switch, and the profile keys it is matched against are
+  atoms because they come from a config file.
+
+      iex> ExQuality.Config.apply_profile([credo: [strict: true]], nil)
+      [credo: [strict: true]]
+
+      iex> config = [profiles: [loop: [test: [scope: :changed]]]]
+      iex> config |> ExQuality.Config.apply_profile("loop") |> Keyword.take([:profile, :test])
+      [profile: :loop, test: [scope: :changed]]
+  """
+  @spec apply_profile(keyword(), String.t() | nil) :: keyword()
+  def apply_profile(config, nil), do: config
+
+  def apply_profile(config, name) do
+    {key, profile} = fetch_profile!(config, name)
+
+    config
+    |> deep_merge(Keyword.delete(profile, :stages))
+    |> deep_merge(profile_skips(config, profile, key))
+    |> Keyword.put(:profile, key)
+  end
+
+  # Every stage key a profile's `stages:` list can allow. A custom stage's key is
+  # added from the config, so a profile narrows a project's own checks the same
+  # way it narrows the built-in ones.
+  @profileable_keys [
+    :format,
+    :compile,
+    :test,
+    :credo,
+    :dialyzer,
+    :doctor,
+    :gettext,
+    :sobelow,
+    :dependencies
+  ]
+
+  # An unknown name is an error, and the error lists what is known: the usual
+  # cause is a profile that was never added to this project's .quality.exs.
+  defp fetch_profile!(config, name) do
+    profiles = profiles(config)
+
+    case Enum.find(profiles, fn {key, _opts} -> to_string(key) == name end) do
+      {key, opts} when is_list(opts) ->
+        {key, opts}
+
+      {key, opts} ->
+        Mix.raise("Profile #{inspect(key)} must be a keyword list, got: #{inspect(opts)}")
+
+      nil ->
+        Mix.raise(
+          "Unknown --profile #{inspect(name)}. " <>
+            known_profiles(profiles) <> " Profiles are declared under profiles: in .quality.exs."
+        )
+    end
+  end
+
+  defp known_profiles([]), do: "No profiles are configured."
+
+  defp known_profiles(profiles) do
+    "Known profiles: " <>
+      Enum.map_join(profiles, ", ", fn {key, _opts} -> inspect(key) end) <> "."
+  end
+
+  defp profiles(config) do
+    case Keyword.get(config, :profiles, []) do
+      profiles when is_list(profiles) ->
+        if Keyword.keyword?(profiles) do
+          profiles
+        else
+          Mix.raise("profiles: in .quality.exs must be a keyword list, got: #{inspect(profiles)}")
+        end
+
+      other ->
+        Mix.raise("profiles: in .quality.exs must be a keyword list, got: #{inspect(other)}")
+    end
+  end
+
+  # A stage left out of a profile's `stages:` is disabled the way a `--skip`
+  # disables one, so it is announced as skipped naming the profile rather than
+  # quietly missing from the run.
+  defp profile_skips(config, profile, name) do
+    case Keyword.fetch(profile, :stages) do
+      :error ->
+        []
+
+      {:ok, allowed} when is_list(allowed) ->
+        for key <- @profileable_keys ++ custom_keys(config), key not in allowed do
+          {key, [enabled: false, disabled_by: {:cli, "not in profile #{inspect(name)}"}]}
+        end
+
+      {:ok, other} ->
+        Mix.raise(
+          "stages: in profile #{inspect(name)} must be a list of stage keys, got: #{inspect(other)}"
+        )
+    end
+  end
+
+  defp custom_keys(config) do
+    config
+    |> ExQuality.Custom.stages()
+    |> Enum.flat_map(fn entry ->
+      if Keyword.keyword?(entry), do: List.wrap(Keyword.get(entry, :key)), else: []
+    end)
   end
 
   @doc """
@@ -347,7 +512,9 @@ defmodule ExQuality.Config do
     # --quick mode: skip dialyzer, skip coverage enforcement
     |> put_flag(opts, :quick)
     |> put_flag(opts, :verbose)
+    |> put_flag(opts, :until_first_failure)
     |> put_test_args(opts)
+    |> put_test_scope(opts)
     |> annotate_disabled(:cli)
   end
 
@@ -370,7 +537,28 @@ defmodule ExQuality.Config do
   end
 
   defp put_test_args(config, opts) do
-    if opts[:test_args], do: Keyword.put(config, :test, args: opts[:test_args]), else: config
+    if opts[:test_args], do: put_test_option(config, :args, opts[:test_args]), else: config
+  end
+
+  # `--test-scope` is parsed here rather than at the switch, so a bad value fails
+  # the run with the same message a bad `.quality.exs` value gets.
+  defp put_test_scope(config, opts) do
+    case Keyword.fetch(opts, :test_scope) do
+      :error ->
+        config
+
+      {:ok, value} ->
+        case ExQuality.Scope.parse(value) do
+          {:ok, scope} -> put_test_option(config, :scope, scope)
+          {:error, message} -> Mix.raise("Invalid --test-scope: #{message}")
+        end
+    end
+  end
+
+  # `test:` can be set by more than one switch, so each one merges into whatever
+  # the last put there rather than replacing it.
+  defp put_test_option(config, key, value) do
+    Keyword.update(config, :test, [{key, value}], &Keyword.put(&1, key, value))
   end
 
   defp deep_merge(left, right) do

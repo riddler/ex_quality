@@ -81,16 +81,35 @@ mix quality.init --skip-prompts
 `.quality.exs`. Nothing about it is required: ExQuality runs whatever the
 project already depends on.
 
-## Two modes
+## Three modes
 
 ```bash
-mix quality --quick    # while coding
-mix quality            # before committing, and in CI
+mix quality --test-scope changed   # between edits
+mix quality --quick                # while coding
+mix quality                        # before committing, and in CI
 ```
 
 Quick mode skips Dialyzer and coverage enforcement, the two slow stages. Tests
-still run, and everything else is unchanged. Full mode runs every enabled
-stage.
+still run, and everything else is unchanged. Full mode runs every enabled stage.
+
+`--test-scope changed` is the one that narrows the tests, which on a large suite
+is most of the wall clock. It runs only the test files covering the code you have
+changed, committed or not, and falls back to the whole suite if that maps to
+nothing: a green run of nothing is worse than a slow one. Coverage on a scoped run
+is reported as skipped rather than as a percentage over a subset.
+
+A project can name a bundle of those settings in `.quality.exs` so its docs and
+its agents point at one word:
+
+```elixir
+profiles: [loop: [stages: [:format, :compile, :credo], test: [scope: :changed]]]
+```
+
+```bash
+mix quality --profile loop
+```
+
+See [Configuration](docs/configuration.md#test-scope).
 
 ## Stages
 

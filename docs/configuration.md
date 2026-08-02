@@ -5,12 +5,13 @@ it decides on its own.
 
 ## Precedence
 
-Four sources, merged in order, later wins:
+Five sources, merged in order, later wins:
 
 1. **Defaults**
 2. **Auto-detection** - a stage is available when the project depends on its tool
 3. **`.quality.exs`** - read from the project root, not the working directory
-4. **CLI flags**
+4. **The profile** named by `--profile`, if any
+5. **CLI flags**
 
 Auto-detection only ever sets availability. A stage that is available can still
 be turned off by `.quality.exs` or a flag, and one that is unavailable can be
@@ -27,8 +28,12 @@ mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
 mix quality --skip KEY            # skip any stage by key; repeatable
+mix quality --profile NAME        # run a named bundle from .quality.exs
+mix quality --test-scope changed  # run only the tests covering changed code
+mix quality --until-first-failure # stop at the first failing stage, cheapest first
 mix quality --verbose             # print full output even for stages that passed
 mix quality --report PATH         # also write a JSON report to PATH
+mix quality --report -            # JSON report on stdout, human output on stderr
 mix quality --format json         # JSON report on stdout, human output on stderr
 ```
 
@@ -115,8 +120,15 @@ A keyword list at the project root. Every key is optional.
     # :auto measures coverage when the project's own config asks for it.
     coverage: :auto,
     # Extra arguments for mix test / mix coveralls.
-    args: []
-  ]
+    args: [],
+    # How much of the suite to run: :all, :changed, or a glob string.
+    scope: :all,
+    # What :changed is measured against. nil is the repository's default branch.
+    base_ref: nil
+  ],
+
+  # Named bundles of the options above, selected with --profile.
+  profiles: []
 ]
 ```
 
@@ -129,6 +141,87 @@ Every stage takes one of three values:
 | `:auto` | run when the tool is installed (the default) |
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
+
+## Test scope
+
+Every flag above narrows *which checks run*. `scope` narrows *how much code they
+run over*, which is the expensive question: on a large suite the tests are most
+of a run's wall clock, and `--quick` does not touch them.
+
+```elixir
+test: [
+  scope: :changed,
+  base_ref: "origin/main"
+]
+```
+
+```bash
+mix quality --test-scope changed
+mix quality --test-scope all
+mix quality --test-scope "test/unit/**/*_test.exs"
+```
+
+| Value | Meaning |
+|---|---|
+| `:all` | the whole suite (the default) |
+| `:changed` | the test files covering the code changed against `base_ref` |
+| a glob string | the test files matching it |
+
+`:changed` reads the working tree, not just committed history, and folds in
+untracked files: work in progress is exactly what this is for.
+`lib/foo/bar.ex` maps to `test/foo/bar_test.exs`, and in an umbrella
+`apps/web/lib/user.ex` maps under `apps/web/test/`. A changed test file is
+itself.
+
+Two rules make a scoped green safe to read:
+
+- **A scope that resolves to no test files runs the whole suite.** A green run of
+  nothing is the one result that would be worse than a slow one, because it fails
+  in the safe-looking direction.
+- **Coverage on a scoped run is reported as `skipped`, never as a number.** A
+  percentage over a subset of the suite is not a smaller truth, it is a different
+  one, and anything that ratchets a recorded figure would lower it against a run
+  that never measured.
+
+The report says which of the two happened, at the root and on the Tests stage.
+See [Reports](reports.md).
+
+## Profiles
+
+A profile is a named bundle of the options above, so the fast path has a name a
+project's docs and its agent instructions can point at. A fast path nobody
+invokes is worth nothing.
+
+```elixir
+profiles: [
+  loop: [
+    stages: [:format, :compile, :credo],
+    test: [scope: :changed]
+  ],
+  gate: []
+]
+```
+
+```bash
+mix quality --profile loop
+```
+
+`stages:` is the allow-list for the profile. Every other stage, built-in or
+custom, is reported as skipped naming the profile:
+
+```
+○ Dialyzer: skipped (not in profile :loop)
+```
+
+A profile with no `stages:` key narrows nothing and only carries options, which
+is what an empty `gate: []` is for.
+
+- A run with no `--profile` behaves exactly as it did before profiles existed.
+- The profile merges over `.quality.exs` and under the CLI, so a flag still wins.
+- An unknown profile name **fails the run**. Falling back to "run everything"
+  would turn a typo into a slow green, and falling back to the profile's intent
+  would turn one into a fast green over nothing.
+- The profile name goes in the report, for the same reason the scope does.
 
 ## Custom stages
 

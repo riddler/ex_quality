@@ -27,9 +27,13 @@ defmodule Mix.Tasks.Quality do
   - `--skip-sobelow` - Skip Sobelow security analysis
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
   - `--skip KEY` - Skip any stage by key, built-in or custom; repeatable
+  - `--profile NAME` - Run a named bundle of options from `.quality.exs`
+  - `--test-scope all|changed|GLOB` - How much of the suite to run
+  - `--until-first-failure` - Stop at the first failing stage, cheapest first
   - `--verbose` - Show full output even on success
   - `--format json` - Write a JSON report to stdout, human output to stderr
   - `--report PATH` - Write a JSON report to PATH, human output to stdout
+    (`--report -` writes it to stdout, as `--format json` does)
 
   ## Passing Test Options
 
@@ -70,6 +74,35 @@ defmodule Mix.Tasks.Quality do
     coverage threshold is not enforced)
 
   This lets you iterate quickly while still catching obvious issues.
+
+  ## An inner loop, as opposed to a gate
+
+  A full run is a good thing to require before a push and a bad thing to run
+  between edits, and every switch above narrows *which checks run* when the
+  expensive question is *how much code they run over*. On a large suite the tests
+  are most of the wall clock, and `--quick` does not touch them: it removes
+  dialyzer and the coverage threshold and still runs every test.
+
+      mix quality --test-scope changed        # only the tests covering your edits
+      mix quality --profile loop             # a named bundle, see below
+      mix quality --until-first-failure      # stop at the first thing to fix
+
+  `--test-scope changed` maps the files you have changed, committed or not, to
+  the test files covering them. A scope that resolves to no test files runs the
+  whole suite instead, because a green run of nothing is the one result that
+  would be worse than a slow one. Coverage is reported as skipped on a scoped
+  run, never as a number over a subset. See `ExQuality.Scope`.
+
+  A profile gives that fast path a name, so a project's docs and its agent
+  instructions can point at one word instead of a switch list:
+
+      profiles: [
+        loop: [stages: [:format, :compile, :credo], test: [scope: :changed]],
+        gate: []
+      ]
+
+  A run with no `--profile` behaves exactly as it did before profiles existed.
+  See `ExQuality.Config` for how a profile merges, and what an unknown name does.
 
   ## Configuration
 
@@ -165,9 +198,32 @@ defmodule Mix.Tasks.Quality do
     skip_sobelow: :boolean,
     skip_dependencies: :boolean,
     skip: :keep,
+    profile: :string,
+    test_scope: :string,
+    until_first_failure: :boolean,
     verbose: :boolean,
     format: :string,
     report: :string
+  ]
+
+  # Cheapest first, for --until-first-failure. An iterating caller does not need
+  # a full battery report, it needs the next thing to fix, and paying a minute of
+  # tests to be told about a formatting error is the opposite of that. The order
+  # is stated rather than derived because the analysis phase runs in parallel and
+  # so has never needed one. A custom stage's cost is unknown, so it is placed
+  # with the linters: they are what a project's own checks usually are, and being
+  # wrong there costs a few seconds rather than a suite.
+  @cost_order [
+    :format,
+    :compile,
+    :dependencies,
+    :sobelow,
+    :gettext,
+    :credo,
+    :doctor,
+    :custom,
+    :dialyzer,
+    :test
   ]
 
   @doc """
@@ -192,16 +248,23 @@ defmodule Mix.Tasks.Quality do
   end
 
   defp reporting(opts) do
-    format =
+    requested =
       case Keyword.get(opts, :format, "human") do
         "human" -> :human
         "json" -> :json
         other -> Mix.raise(~s(Unknown --format #{inspect(other)}. Expected "human" or "json".))
       end
 
+    path = Keyword.get(opts, :report)
+
+    # `--report -` is the shell's spelling of "to stdout", and a caller that
+    # wants the report there wants nothing else there: the human stream moves to
+    # stderr rather than being interleaved into JSON nobody can parse.
+    format = if path == "-", do: :json, else: requested
+
     %{
       format: format,
-      path: Keyword.get(opts, :report),
+      path: if(path == "-", do: nil, else: path),
       # Failure details are written verbatim rather than through the shell, so
       # they need to be told where the human stream went.
       device: if(format == :json, do: :stderr, else: :stdio)
@@ -213,12 +276,20 @@ defmodule Mix.Tasks.Quality do
 
     Mix.shell().info("Running quality checks...\n")
 
+    if Keyword.get(config, :until_first_failure, false) do
+      run_serially(config, started, reporting)
+    else
+      run_in_phases(config, started, reporting)
+    end
+  end
+
+  defp run_in_phases(config, started, reporting) do
     # Phase 1: Auto-fix (format)
-    format_result = Format.run(config)
+    format_result = run_or_skip(config, :format, "Format", &Format.run/1)
     display_phase_result(format_result)
 
     # Phase 2: Compile (blocking gate)
-    compile_result = Compile.run(config)
+    compile_result = run_or_skip(config, :compile, "Compile", &Compile.run/1)
     display_phase_result(compile_result)
 
     if compile_result.status == :error do
@@ -227,7 +298,13 @@ defmodule Mix.Tasks.Quality do
       not_run = analysis_stages_not_run(config, "compile failed")
       Enum.each(not_run, &display_phase_result/1)
 
-      finish([format_result, compile_result | not_run], started, reporting, "Compilation failed")
+      finish(
+        [format_result, compile_result | not_run],
+        started,
+        reporting,
+        config,
+        "Compilation failed"
+      )
     else
       # Phase 3: Analysis (parallel with streaming)
       Mix.shell().info("\nRunning analysis stages in parallel...\n")
@@ -235,13 +312,69 @@ defmodule Mix.Tasks.Quality do
       analysis_results = run_analysis_stages(config)
       all_results = [format_result, compile_result | analysis_results]
 
-      finish(all_results, started, reporting, nil)
+      finish(all_results, started, reporting, config, nil)
+    end
+  end
+
+  # `--until-first-failure`: one stage at a time, cheapest first, stopping at the
+  # first failure. Nothing runs in parallel here, which is the point: the run
+  # exists to name the next thing to fix, and a stage that would have taken a
+  # minute to also fail is a minute spent on something the caller is not going to
+  # read yet.
+  defp run_serially(config, started, reporting) do
+    {stages, skipped} = serial_stages(config)
+    Enum.each(skipped, &display_phase_result/1)
+
+    {ran, not_run} = run_until_failure(stages, config)
+
+    stopped = Enum.map(not_run, &Stage.skipped(&1.name, "--until-first-failure"))
+    Enum.each(stopped, &display_phase_result/1)
+
+    finish(skipped ++ ran ++ stopped, started, reporting, config, nil)
+  end
+
+  defp run_until_failure(stages, config) do
+    Enum.reduce_while(stages, {[], stages}, fn stage, {ran, remaining} ->
+      result = stage.run.(config)
+      display_phase_result(result)
+
+      ran = ran ++ [result]
+      remaining = tl(remaining)
+
+      if result.status == :error, do: {:halt, {ran, remaining}}, else: {:cont, {ran, remaining}}
+    end)
+  end
+
+  # Every stage of the run, runnable ones cheapest first. Unlike the phased path
+  # this includes format and compile, because with no parallel phase to sit ahead
+  # of they are just the two cheapest stages.
+  defp serial_stages(config) do
+    {stages, skipped} =
+      config
+      |> all_candidates()
+      |> Enum.split_with(&is_nil(&1.skip_reason))
+
+    {Enum.sort_by(stages, &cost_index(&1.key)),
+     Enum.map(skipped, &Stage.skipped(&1.name, &1.skip_reason))}
+  end
+
+  defp cost_index(key) do
+    Enum.find_index(@cost_order, &(&1 == key)) || Enum.find_index(@cost_order, &(&1 == :custom))
+  end
+
+  # A stage that a profile or a `--skip` turned off is reported as skipped rather
+  # than run. Format and compile have always run unconditionally, and they still
+  # do unless something says otherwise.
+  defp run_or_skip(config, key, name, run) do
+    case Config.skip_reason(config, key) do
+      nil -> run.(config)
+      reason -> Stage.skipped(name, reason)
     end
   end
 
   # One exit for every run: render the human verdict, emit the report, then
   # fail. The report is written before raising so a caller still gets it.
-  defp finish(results, started, reporting, message) do
+  defp finish(results, started, reporting, config, message) do
     failures = Enum.filter(results, &(&1.status == :error))
 
     if failures != [] do
@@ -251,17 +384,17 @@ defmodule Mix.Tasks.Quality do
       Mix.shell().info("\n✓ All quality checks passed!")
     end
 
-    emit_report(results, System.monotonic_time(:millisecond) - started, reporting)
+    emit_report(results, System.monotonic_time(:millisecond) - started, reporting, config)
 
     if failures != [] do
       Mix.raise(message || "#{length(failures)} quality check(s) failed")
     end
   end
 
-  defp emit_report(_results, _duration_ms, %{format: :human, path: nil}), do: :ok
+  defp emit_report(_results, _duration_ms, %{format: :human, path: nil}, _config), do: :ok
 
-  defp emit_report(results, duration_ms, reporting) do
-    json = results |> Report.build(duration_ms) |> Report.encode!()
+  defp emit_report(results, duration_ms, reporting, config) do
+    json = results |> Report.build(duration_ms, config) |> Report.encode!()
 
     if reporting.path, do: File.write!(reporting.path, json)
     if reporting.format == :json, do: IO.write(json)
@@ -300,18 +433,15 @@ defmodule Mix.Tasks.Quality do
     result
   end
 
-  # Every optional stage is either run or reported as skipped with its reason.
-  # Tests always run (but coverage enforcement is skipped in quick mode).
+  # Every stage is either run or reported as skipped with its reason. Tests run
+  # unless something turned them off explicitly - a `--skip test` or a profile
+  # that leaves them out - and quick mode narrows what they measure rather than
+  # whether they run.
   defp build_analysis_stages(config) do
-    {stages, skipped} =
-      Enum.reduce(candidate_stages(config), {[], []}, fn stage, {stages, skipped} ->
-        case stage.skip_reason do
-          nil -> {[stage | stages], skipped}
-          reason -> {stages, [Stage.skipped(stage.name, reason) | skipped]}
-        end
-      end)
+    candidates = candidate_stages(config) ++ [test_stage(config)]
+    {stages, skipped} = Enum.split_with(candidates, &is_nil(&1.skip_reason))
 
-    {Enum.reverse([test_stage(config) | stages]), Enum.reverse(skipped)}
+    {stages, Enum.map(skipped, &Stage.skipped(&1.name, &1.skip_reason))}
   end
 
   # Built-ins first, then the project's own stages, in declaration order. Both
@@ -343,8 +473,25 @@ defmodule Mix.Tasks.Quality do
     builtin ++ custom
   end
 
+  # Format and compile are phases rather than analysis stages in the default run,
+  # so they are only assembled as candidates for the serial path, which has no
+  # phases to be ahead of.
+  defp all_candidates(config) do
+    [
+      stage(:format, "Format", :writer, &Format.run/1, Config.skip_reason(config, :format)),
+      stage(:compile, "Compile", :writer, &Compile.run/1, Config.skip_reason(config, :compile)),
+      test_stage(config)
+    ] ++ candidate_stages(config)
+  end
+
   defp test_stage(config) do
-    stage(:test, "Tests", Stage.kind(Test, config), &Test.run/1, nil)
+    stage(
+      :test,
+      "Tests",
+      Stage.kind(Test, config),
+      &Test.run/1,
+      Config.skip_reason(config, :test)
+    )
   end
 
   defp stage(key, name, kind, run, skip_reason) do
