@@ -4,9 +4,9 @@
 
 # ExQuality
 
-Runs an Elixir project's quality tools in parallel and reports the run as a
-fixed set of stages, each with a status, a one-line summary, and findings that
-carry a `file:line`.
+Runs an Elixir project's quality tools in parallel and reports the run as one
+stage per tool, each with a status, a one-line summary, and findings that carry
+a `file:line`.
 
 ```
 mix quality
@@ -89,24 +89,31 @@ mix quality --quick                # while coding
 mix quality                        # before committing, and in CI
 ```
 
-Quick mode skips Dialyzer and coverage enforcement, the two slow stages. Tests
-still run, and everything else is unchanged. Full mode runs every enabled stage.
+Full mode runs every enabled stage. Quick mode drops Dialyzer and the coverage
+threshold, the two slow stages - but it still runs every test, and on a large
+suite the tests are most of the wall clock. That is the difference between the
+first two lines above: `--quick` narrows *which checks run*, and `--test-scope`
+narrows *how much code they run over*, which is the expensive question.
 
-`--test-scope changed` is the one that narrows the tests, which on a large suite
-is most of the wall clock. It runs only the test files covering the code you have
-changed, committed or not, and falls back to the whole suite if that maps to
-nothing: a green run of nothing is worse than a slow one. Coverage on a scoped run
-is reported as skipped rather than as a percentage over a subset.
+`--test-scope changed` runs only the test files covering the code you have
+changed, committed or not. Two rules keep the result readable:
 
-A project can name a bundle of those settings in `.quality.exs` so its docs and
-its agents point at one word:
+- **A scope that resolves to no test files runs the whole suite.** A green run of
+  nothing is worse than a slow one, because it fails in the safe-looking
+  direction.
+- **Coverage is reported as skipped, never as a number.** A percentage over a
+  subset of the suite is not a smaller truth, it is a different one.
+
+A project can name a bundle of settings in `.quality.exs`, so its docs and its
+agents point at one word instead of a flag list:
 
 ```elixir
 profiles: [loop: [stages: [:format, :compile, :credo], test: [scope: :changed]]]
 ```
 
 ```bash
-mix quality --profile loop
+mix quality --profile loop            # the bundle above
+mix quality --until-first-failure     # stop at the first thing to fix
 ```
 
 See [Configuration](docs/configuration.md#test-scope).
@@ -147,6 +154,7 @@ another - asks for a report instead of scraping the console:
 ```bash
 mix quality --report .quality.json   # human output on stdout, report to a file
 mix quality --format json            # report on stdout, human output on stderr
+mix quality --report -               # the same, spelled the way a pipe reads
 ```
 
 ```json
@@ -154,6 +162,9 @@ mix quality --format json            # report on stdout, human output on stderr
   "status": "error",
   "version": "0.6.0",
   "duration_ms": 5014,
+  "profile": null,
+  "scope": "all",
+  "base_ref": null,
   "stages": [
     {
       "name": "Dialyzer",
@@ -184,21 +195,31 @@ mix quality --format json            # report on stdout, human output on stderr
 
 Every stage carries the same keys whatever its status, so a consumer reads one
 field rather than branching. The report is built from the same results the
-human output is rendered from, so the two can never disagree. Full schema in
-[docs/reports.md](docs/reports.md).
+human output is rendered from, so the two can never disagree.
+
+`scope` says how much of the suite the run covered, and is what lets anything
+that ratchets a number, moves a baseline or gates a merge refuse to move on a
+narrow run: a green run over three test files and a green full run are different
+claims. Full schema in [docs/reports.md](docs/reports.md).
 
 ## Working with a coding agent
 
 ExQuality ships a [`usage-rules.md`](usage-rules.md) for AI coding assistants,
 readable by [usage_rules](https://hex.pm/packages/usage_rules). It tells an
-agent which mode to run, how to read a failure, not to truncate the output, and
-which fixes are never acceptable - lowering a coverage threshold, adding a
-`.sobelow-conf` ignore - because a tool silencing its own findings is a
-regression dressed as a pass.
+agent which command to run for which situation, how to read a failure, not to
+truncate the output, and which fixes are never acceptable - lowering a coverage
+threshold, adding a `.sobelow-conf` ignore - because a tool silencing its own
+findings is a regression dressed as a pass.
 
-The properties above are what make an agent loop cheap: a passing run costs an
-agent nine lines of context instead of several tool reports, and a failing one
-gives it `file:line` targets without a second command.
+Two things make an agent loop cheap, and they pull in opposite directions. The
+output properties above are one: a passing run costs nine lines of context
+instead of several tool reports, and a failing one gives `file:line` targets
+without a second command. The other is that the run has to be quick enough to be
+worth repeating. An aggregate command that always runs the full suite is one an
+agent will either invoke and pay for, or quietly stop invoking - both worse than
+the individual test runs it would have reached for otherwise. `--test-scope
+changed` is the answer to that, and `scope` in the report is how the full gate
+stays distinguishable from it.
 
 ## Documentation
 

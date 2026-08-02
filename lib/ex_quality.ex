@@ -7,11 +7,14 @@ defmodule ExQuality do
 
   ## Quick Start
 
-      # Run all quality checks
+      # Everything: the gate, before a commit and in CI
       mix quality
 
-      # Quick mode (skip slow checks like dialyzer)
+      # Quick mode: skips dialyzer and coverage enforcement
       mix quality --quick
+
+      # The inner loop: only the tests covering what changed
+      mix quality --test-scope changed
 
   ## Features
 
@@ -20,7 +23,10 @@ defmodule ExQuality do
   - **Streaming output** - See results as each stage completes
   - **Auto-detection** - Enables stages based on installed dependencies
   - **Actionable feedback** - Shows file:line references for issues
-  - **Configurable** - Customize via `.quality.exs`
+  - **Scoped runs** - Narrows *how much code* a run covers, not just which
+    checks it runs, which is what makes a between-edits loop affordable. See
+    `ExQuality.Scope`
+  - **Configurable** - Customize via `.quality.exs`, including named profiles
   - **LLM-friendly** - Includes `usage-rules.md` for AI assistants
 
   ## Supported Quality Checks
@@ -31,7 +37,12 @@ defmodule ExQuality do
   - Dialyzer (type checking)
   - Doctor (documentation coverage)
   - Gettext (translation completeness)
+  - Sobelow (security analysis)
+  - Dependencies (unused deps and security audit)
   - Tests (with optional coverage via excoveralls)
+
+  A project's own checks run as stages of the same run, declared under `custom:`
+  in `.quality.exs`. See `ExQuality.Custom`.
 
   See `Mix.Tasks.Quality` for detailed usage information.
   """

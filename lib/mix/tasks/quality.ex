@@ -13,6 +13,9 @@ defmodule Mix.Tasks.Quality do
   2. **Compile** - Compiles dev + test environments in parallel
   3. **Analysis** - Runs enabled checks in parallel (credo, dialyzer, doctor, tests)
 
+  `--until-first-failure` replaces all three with one sequential pass, cheapest
+  stage first, stopping at the first failure. See "An inner loop" below.
+
   ## Usage
 
       mix quality
@@ -146,10 +149,15 @@ defmodule Mix.Tasks.Quality do
 
       mix quality --format json           # report on stdout, human on stderr
       mix quality --report .quality.json  # human on stdout, report to a file
+      mix quality --report -              # the same as --format json
 
-  `--report` is usually the more useful of the two, because it leaves the
-  human stream intact. Both can be given at once. See `ExQuality.Report` for
-  the shape.
+  `--report PATH` is usually the most useful, because it leaves the human
+  stream intact, and it can be given alongside `--format json`.
+
+  The root of the report carries `profile`, `scope` and `base_ref`, because
+  `status` alone does not say what a run is evidence for: a green run over three
+  test files and a green full run are different claims. See `ExQuality.Report`
+  for the shape.
 
   ## Dialyzer PLT
 

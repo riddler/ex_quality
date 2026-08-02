@@ -49,9 +49,8 @@ defmodule ExQuality.MixProject do
 
   defp description do
     "Elixir code quality checker. Runs format, compile, Credo, Dialyzer, " <>
-      "coverage, Sobelow and mix_audit in parallel from one mix task, and " <>
-      "reports findings with file:line plus a JSON report for CI, scripts " <>
-      "and AI coding agents. Umbrella-aware."
+      "coverage, Sobelow and mix_audit in parallel from one mix task. " <>
+      "Findings with file:line, a JSON report, scoped runs. Umbrella-aware."
   end
 
   defp package do
