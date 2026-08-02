@@ -33,12 +33,27 @@ mix quality --until-first-failure       # stop at the first thing to fix
 
 `--test-scope changed` maps the files you have changed, committed or not, to the
 test files covering them (`lib/foo/bar.ex` to `test/foo/bar_test.exs`; in an
-umbrella, under the same app). A scope that resolves to no test files runs the
-whole suite rather than reporting a green run of nothing.
+umbrella, under the same app). The Tests line says what it ran:
+
+```
+✓ Tests: 12 of 12 passed (scope changed, 3 files vs origin/main, no coverage) (2.8s)
+```
+
+A scope that resolves to no test files runs the whole suite rather than reporting
+a green run of nothing, and says so instead of quietly passing:
+
+```
+✓ Tests: 4,180 of 4,180 passed (scope changed fell back to the full suite: no test files map to the changed files)
+```
 
 **A scoped green is not a full green.** Coverage is not measured, and Dialyzer
 still sees the whole project. Run a full `mix quality` before reporting work
 complete, and never treat a scoped run as the final check.
+
+With `--until-first-failure` the stages after the failure are reported as
+`○ Tests: skipped (--until-first-failure)`. Those are not missing checks and not
+something to report to the user - they are checks this run deliberately did not
+pay for. Fix the failure and run again.
 
 If the project's `.quality.exs` declares `profiles:`, use the one it names
 instead of assembling flags yourself:
@@ -53,8 +68,9 @@ a name that works is a name the project chose.
 ## Never truncate the output
 
 ```bash
-mix quality              # correct
-mix quality --quick      # correct
+mix quality                        # correct
+mix quality --quick                # correct
+mix quality --test-scope changed   # correct
 
 mix quality | tail -50   # wrong
 mix quality 2>&1 | head  # wrong
@@ -82,6 +98,11 @@ do not see was not silently fine - it was not considered at all.
 **Read the `○` lines.** `○ Credo: skipped (:credo not installed)` means the
 project has no static analysis, and a green run proves less than it looks like
 it does. That is worth telling the user, not passing over.
+
+The reason distinguishes the two kinds. `:credo not installed` or `disabled in
+.quality.exs` is a gap in what the project checks at all. `--quick`,
+`not in profile :loop` and `--until-first-failure` are gaps in *this* run,
+because you asked for a narrower one; a full `mix quality` closes them.
 
 Failures print below the summary, grouped by file:
 
@@ -216,11 +237,18 @@ on `status` and `findings`; treat `name` as a label.
 [
   credo: [strict: true],
   dialyzer: [enabled: false],
-  test: [args: ["--only", "integration"]]
+  test: [args: ["--only", "integration"]],
+  profiles: [loop: [stages: [:format, :compile, :credo], test: [scope: :changed]]]
 ]
 ```
 
-Test arguments also go after `--`: `mix quality -- --seed 0`.
+Test arguments also go after `--`: `mix quality -- --seed 0`. That is also how to
+bound a failing suite while iterating:
+`mix quality --test-scope changed -- --max-failures 3`.
+
+If the file declares `profiles:`, those names are the project's answer to "what
+should I run while iterating". Use them rather than inventing a flag combination,
+and do not add or edit one to make a run pass.
 
 Coverage and security thresholds are deliberately not configurable here. They
 are read from the tool that owns them, so there is one place to change what
