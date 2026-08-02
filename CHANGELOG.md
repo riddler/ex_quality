@@ -7,19 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-An inner loop, beside the gate. Every flag this library had narrowed *stages*;
-what an agent iterating on one file needs is to narrow *scope*. A measured A/B of
-agentic development on a large umbrella lost both workloads against a control arm
-using individual check scripts, at 1.97x and 1.43x the wall clock, and the
-difference was not model time: it was seven `mix quality` runs averaging 61.7s, of
-which the test suite was 68%. Both arms could run one test file in 3s; only one of
-them had a reason to. `--quick` does not address this - it removes dialyzer and
-the coverage threshold and still runs every test, which against that split is 10%
-of the cost.
+## [0.12.0] - 2026-08-01
 
 ### Added
 
-- **`test: [scope: :changed]`, or `--test-scope changed`, runs only the test files covering the code that changed.** Changed files are resolved against the merge base with the repository's default branch, including uncommitted and untracked work, because an agent mid-task has everything uncommitted and a diff that reads only committed history would report no changes on exactly the runs this exists for. `lib/foo/bar.ex` maps to `test/foo/bar_test.exs`, in an umbrella under the same app, and a changed test file is itself. `--test-scope` also takes `all` or a glob string, and `test: [base_ref: "origin/main"]` overrides what `:changed` is measured against
+- **`test: [scope: :changed]`, or `--test-scope changed`, runs only the test files covering the code that changed.** Every flag this library had narrows *stages*, and the expensive question is how much *code*. Measured on a large umbrella that adopted it: across a run of agentic development `mix quality` averaged 61.7s, of which the suite was 68%, while the same agent could run a single test file in about 3s. `--quick` does not address that - it removes dialyzer and the coverage threshold and still runs every test, which against that split is 10% of the cost. Changed files are resolved against the merge base with the repository's default branch, including uncommitted and untracked work, because an agent mid-task has everything uncommitted and a diff that reads only committed history would report no changes on exactly the runs this exists for. `lib/foo/bar.ex` maps to `test/foo/bar_test.exs`, in an umbrella under the same app, and a changed test file is itself. `--test-scope` also takes `all` or a glob string, and `test: [base_ref: "origin/main"]` overrides what `:changed` is measured against
 - **A scope that resolves to no test files runs the full suite.** This is the one failure mode that would make the feature worse than not having it, because it fails in the safe-looking direction: exit 0, `"status": "ok"`, nothing run. The report says which happened, carrying the achieved `scope` with `requested_scope` and `fallback_reason` beside it, so a caller checking `scope == "all"` never has to reason about fallbacks
 - **Coverage on a scoped run is absent rather than lower.** It is reported as `"coverage": "skipped"` with a reason and never as a number: a percentage over a subset of the suite is not a smaller truth, it is a different and misleading one, and an adopting project that lowers a recorded figure on a green run would corrupt it against a run that never measured
 - **Profiles.** `profiles:` in `.quality.exs` names bundles of options, selected with `mix quality --profile loop`, so the fast path has a name a project's docs and its agent instructions can point at - a fast path nobody invokes is worth nothing. A profile's `stages:` key is an allow-list; every other stage, built-in or custom, is reported as skipped naming the profile. The profile merges over the config file and under the CLI. An unknown name fails the run, because falling back to "run everything" would turn a typo into a slow green
@@ -265,7 +257,13 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.12.0...HEAD
+[0.11.0]: https://github.com/riddler/ex_quality/compare/v0.11.0...v0.12.0
+[0.10.0]: https://github.com/riddler/ex_quality/compare/v0.10.0...v0.11.0
+[0.9.0]: https://github.com/riddler/ex_quality/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/riddler/ex_quality/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/riddler/ex_quality/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/riddler/ex_quality/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/riddler/ex_quality/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/riddler/ex_quality/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/riddler/ex_quality/compare/v0.3.0...v0.4.0
