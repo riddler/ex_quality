@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-02
+
+### Changed
+
+- **Stage status lines carry colour**: green on a passing stage's tick and name, dim on a skipped line, and the failure line unchanged because it already rendered in red. Colour is a second channel over the `✓`/`✗`/`○`, never a replacement for it, so anything reading the output without a terminal still reads the status off the glyph. Both shells format through `IO.ANSI`, which drops the codes when stdout is not a terminal, so CI logs, piped runs and `--format json` are unchanged and there is no flag to turn it off
+- The two identical renderers for stage results are now one. `ExQuality.Printer.print_result/1` prints straight to the shell when no printer agent is running, which is all the sequential format and compile phases needed from it, so `mix quality` no longer carries its own copy of the same three clauses
+
+### Fixed
+
+- **The guide links on the hex.pm package page reached the guides rather than their markdown source.** hex.pm renders the README from the tarball and resolves relative paths against it, and `docs/` ships in the package, so `docs/configuration.md` resolved to the file. The README links to HexDocs by absolute URL now. Links between the guides stay relative, which is what ExDoc resolves
+
 ## [0.12.0] - 2026-08-01
 
 ### Added
@@ -257,7 +268,8 @@ ExQuality is designed for rapid, iterative development with confidence:
 4. Zero configuration required (works out of the box)
 5. Progressive enhancement (add tools as needed)
 
-[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/riddler/ex_quality/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/riddler/ex_quality/compare/v0.12.0...v0.13.0
 [0.11.0]: https://github.com/riddler/ex_quality/compare/v0.11.0...v0.12.0
 [0.10.0]: https://github.com/riddler/ex_quality/compare/v0.10.0...v0.11.0
 [0.9.0]: https://github.com/riddler/ex_quality/compare/v0.9.0...v0.10.0
