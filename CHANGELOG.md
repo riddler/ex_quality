@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+An inner loop, beside the gate. Every flag this library had narrowed *stages*;
+what an agent iterating on one file needs is to narrow *scope*. A measured A/B of
+agentic development on a large umbrella lost both workloads against a control arm
+using individual check scripts, at 1.97x and 1.43x the wall clock, and the
+difference was not model time: it was seven `mix quality` runs averaging 61.7s, of
+which the test suite was 68%. Both arms could run one test file in 3s; only one of
+them had a reason to. `--quick` does not address this - it removes dialyzer and
+the coverage threshold and still runs every test, which against that split is 10%
+of the cost.
+
+### Added
+
+- **`test: [scope: :changed]`, or `--test-scope changed`, runs only the test files covering the code that changed.** Changed files are resolved against the merge base with the repository's default branch, including uncommitted and untracked work, because an agent mid-task has everything uncommitted and a diff that reads only committed history would report no changes on exactly the runs this exists for. `lib/foo/bar.ex` maps to `test/foo/bar_test.exs`, in an umbrella under the same app, and a changed test file is itself. `--test-scope` also takes `all` or a glob string, and `test: [base_ref: "origin/main"]` overrides what `:changed` is measured against
+- **A scope that resolves to no test files runs the full suite.** This is the one failure mode that would make the feature worse than not having it, because it fails in the safe-looking direction: exit 0, `"status": "ok"`, nothing run. The report says which happened, carrying the achieved `scope` with `requested_scope` and `fallback_reason` beside it, so a caller checking `scope == "all"` never has to reason about fallbacks
+- **Coverage on a scoped run is absent rather than lower.** It is reported as `"coverage": "skipped"` with a reason and never as a number: a percentage over a subset of the suite is not a smaller truth, it is a different and misleading one, and an adopting project that lowers a recorded figure on a green run would corrupt it against a run that never measured
+- **Profiles.** `profiles:` in `.quality.exs` names bundles of options, selected with `mix quality --profile loop`, so the fast path has a name a project's docs and its agent instructions can point at - a fast path nobody invokes is worth nothing. A profile's `stages:` key is an allow-list; every other stage, built-in or custom, is reported as skipped naming the profile. The profile merges over the config file and under the CLI. An unknown name fails the run, because falling back to "run everything" would turn a typo into a slow green
+- **`--until-first-failure`** runs one stage at a time, cheapest first, and stops at the first failure. An iterating caller does not need a full battery report, it needs the next thing to fix, and a run that pays for the suite before saying "you have a formatting error" is the opposite of that
+- **`test: [coverage: false]`** was already config-settable; profiles make it settable per profile, so a run can drop instrumentation while keeping dialyzer, which previously required taking all of `--quick`. Measured on a 3,700-test umbrella, warm build, 15 cores: 3.3s of 47s wall clock, but +46% user time, so the wall cost moves toward the CPU figure where cores are scarce
+- **`--report -`** writes the report to stdout, as `--format json` does. Agents were parsing human terminal text because a file path is one more step
+- **`profile`, `scope` and `base_ref` at the report root**, always present. `status` alone does not say what a run is evidence for: a green run over three test files and a green full run are different claims, and this is what lets anything that ratchets a number, moves a baseline or gates a merge refuse to move on the narrow one
+- The Tests stage reports `scope`, `files`, `test_files`, `base_ref` and the coverage keys above in its own object
+- `ExQuality.Scope`, which owns scope parsing and resolution
+- `ExQuality.Config.apply_profile/2` and `ExQuality.Config.profile/1`
+- A stage result may carry `meta`, a map of extra report fields describing what the stage did rather than what it found
+
+### Changed
+
+- Format, Compile and Tests can now be turned off by `--skip <key>` or by a profile's `stages:` list, and are reported as skipped with the reason like any other stage. They have never been skippable before, and an unprofiled run with no `--skip` still runs all three unconditionally
+- A run with no `--profile`, no `--test-scope` and no `--until-first-failure` behaves exactly as it did in 0.11.0. This is a 0.x library with real users, and the default path does not move
+
 ## [0.11.0] - 2026-08-01
 
 ### Fixed

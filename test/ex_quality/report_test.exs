@@ -58,6 +58,66 @@ defmodule ExQuality.ReportTest do
     end
   end
 
+  describe "how much the run covered" do
+    test "reports a full unprofiled run as such" do
+      report = Report.build([result(status: :ok)], 1)
+
+      assert report.profile == nil
+      assert report.scope == "all"
+      assert report.base_ref == nil
+    end
+
+    test "takes the scope from what the test stage actually ran" do
+      tests = result(name: "Tests", meta: %{scope: "changed", files: 3, base_ref: "origin/main"})
+
+      report = Report.build([tests], 1, profile: :loop)
+
+      assert report.profile == "loop"
+      assert report.scope == "changed"
+      assert report.base_ref == "origin/main"
+    end
+
+    test "falls back to the requested scope when the test stage did not run" do
+      results = [Stage.skipped("Tests", "not in profile :lint")]
+
+      assert Report.build(results, 1, test: [scope: :changed]).scope == "changed"
+    end
+
+    test "merges a stage's meta into its own object" do
+      tests =
+        result(
+          name: "Tests",
+          meta: %{
+            scope: "changed",
+            files: 1,
+            coverage: "skipped",
+            test_files: ["test/a_test.exs"]
+          }
+        )
+
+      [stage] = Report.build([tests], 1).stages
+
+      assert stage.scope == "changed"
+      assert stage.files == 1
+      assert stage.coverage == "skipped"
+      assert stage.test_files == ["test/a_test.exs"]
+      # The keys every stage has are still there.
+      assert stage.status == "ok"
+      assert stage.duration_ms == 42
+    end
+
+    test "encodes the whole thing" do
+      tests = result(name: "Tests", meta: %{scope: "changed", files: 2})
+
+      json = [tests] |> Report.build(1, profile: :loop) |> Report.encode!() |> Jason.decode!()
+
+      assert json["profile"] == "loop"
+      assert json["scope"] == "changed"
+      assert json["base_ref"] == nil
+      assert hd(json["stages"])["files"] == 2
+    end
+  end
+
   describe "findings" do
     test "are reported per stage" do
       finding = %Finding{

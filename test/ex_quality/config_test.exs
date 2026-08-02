@@ -169,6 +169,121 @@ defmodule ExQuality.ConfigTest do
     end
   end
 
+  describe "apply_profile/2" do
+    @profiles [
+      profiles: [
+        loop: [stages: [:format, :compile, :credo], test: [scope: :changed]],
+        gate: []
+      ]
+    ]
+
+    test "returns the config untouched with no profile" do
+      assert Config.apply_profile(@profiles, nil) == @profiles
+    end
+
+    test "merges the profile's options" do
+      config = Config.apply_profile(@profiles, "loop")
+
+      assert config[:profile] == :loop
+      assert config[:test][:scope] == :changed
+    end
+
+    test "keeps options the profile does not mention" do
+      config = Config.apply_profile([credo: [strict: true]] ++ @profiles, "loop")
+
+      assert config[:credo][:strict] == true
+    end
+
+    test "skips every stage the profile leaves out, naming the profile" do
+      config = Config.apply_profile(@profiles, "loop")
+
+      assert Config.skip_reason(config, :dialyzer) == "not in profile :loop"
+      assert Config.skip_reason(config, :sobelow) == "not in profile :loop"
+      assert Config.skip_reason(config, :test) == "not in profile :loop"
+    end
+
+    test "runs the stages the profile lists" do
+      config = Config.apply_profile(@profiles, "loop")
+
+      assert Config.skip_reason(config, :format) == nil
+      assert Config.skip_reason(config, :compile) == nil
+      assert Config.skip_reason(config, :credo) == nil
+    end
+
+    test "skips a custom stage the profile leaves out" do
+      config =
+        @profiles ++ [custom: [[key: :house_rules, name: "House rules", command: "true"]]]
+
+      config = Config.apply_profile(config, "loop")
+
+      assert Config.skip_reason(config, :house_rules) == "not in profile :loop"
+    end
+
+    test "a profile with no stages: narrows nothing" do
+      config = Config.apply_profile(@profiles, "gate")
+
+      assert config[:profile] == :gate
+      assert Config.skip_reason(config, :dialyzer) == nil
+    end
+
+    test "an unknown profile fails the run and lists the known ones" do
+      assert_raise Mix.Error, ~r/Unknown --profile "lop".*:loop, :gate/s, fn ->
+        Config.apply_profile(@profiles, "lop")
+      end
+    end
+
+    test "an unknown profile says so when none are configured" do
+      assert_raise Mix.Error, ~r/No profiles are configured/, fn ->
+        Config.apply_profile([], "loop")
+      end
+    end
+
+    test "a malformed profiles: key fails the run" do
+      assert_raise Mix.Error, ~r/profiles: in .quality.exs must be a keyword list/, fn ->
+        Config.apply_profile([profiles: ["loop"]], "loop")
+      end
+    end
+
+    test "a malformed stages: list fails the run" do
+      assert_raise Mix.Error, ~r/stages: in profile :loop must be a list/, fn ->
+        Config.apply_profile([profiles: [loop: [stages: :credo]]], "loop")
+      end
+    end
+  end
+
+  describe "load/1 with the loop switches" do
+    test "test scope defaults to :all" do
+      assert Config.load()[:test][:scope] == :all
+      assert Config.load()[:test][:base_ref] == nil
+    end
+
+    test "--test-scope sets the scope" do
+      assert Config.load(test_scope: "changed")[:test][:scope] == :changed
+      assert Config.load(test_scope: "all")[:test][:scope] == :all
+
+      assert Config.load(test_scope: "test/**/*_test.exs")[:test][:scope] ==
+               {:glob, "test/**/*_test.exs"}
+    end
+
+    test "--test-scope does not clobber test args" do
+      config = Config.load(test_scope: "changed", test_args: ["--seed", "0"])
+
+      assert config[:test][:scope] == :changed
+      assert config[:test][:args] == ["--seed", "0"]
+    end
+
+    test "a bad --test-scope fails the run" do
+      assert_raise Mix.Error, ~r/Invalid --test-scope/, fn ->
+        Config.load(test_scope: "")
+      end
+    end
+
+    test "--until-first-failure is carried on the config" do
+      assert Config.load()[:until_first_failure] == nil
+      assert Config.load(until_first_failure: true)[:until_first_failure] == true
+    end
+  end
+
   describe "configuration merging" do
     test "deep merges nested keyword lists" do
       config = Config.load()

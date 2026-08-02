@@ -777,6 +777,149 @@ defmodule Mix.Tasks.QualityTest do
 
   # The runs above fail on purpose; the report is the thing under test, not
   # the exception Mix raises afterwards.
+  describe "an inner loop rather than a gate" do
+    setup do
+      ExQuality.Tools
+      |> stub(:detect, fn ->
+        %{
+          credo: true,
+          dialyzer: false,
+          doctor: false,
+          gettext: false,
+          coverage: false,
+          audit: false,
+          sobelow: false
+        }
+      end)
+      |> stub(:available?, fn tool -> tool == :credo end)
+
+      :ok
+    end
+
+    defp record_commands do
+      test_pid = self()
+
+      System
+      |> stub(:cmd, fn cmd, args, _opts ->
+        send(test_pid, {:ran, args})
+
+        case args do
+          ["credo" | _] -> {Jason.encode!(%{issues: []}), 0}
+          ["test" | _] -> {"1 tests, 0 failures\n", 0}
+          _other when cmd == "git" -> {"", 1}
+          _other -> {"", 0}
+        end
+      end)
+    end
+
+    defp ran_commands do
+      Enum.reverse(drain_commands([]))
+    end
+
+    defp drain_commands(acc) do
+      receive do
+        {:ran, args} -> drain_commands([args | acc])
+      after
+        0 -> acc
+      end
+    end
+
+    test "--profile skips the stages the profile leaves out" do
+      ExQuality.Config
+      |> stub(:load, fn opts ->
+        ExQuality.Config.apply_profile(
+          [profiles: [loop: [stages: [:format, :credo]]]],
+          opts[:profile]
+        )
+      end)
+
+      record_commands()
+
+      captured = capture_io(fn -> Quality.run(["--profile", "loop", "--skip-dialyzer"]) end)
+
+      assert captured =~ "○ Tests: skipped (not in profile :loop)"
+      assert captured =~ "○ Compile: skipped (not in profile :loop)"
+      refute Enum.any?(ran_commands(), &match?(["test" | _], &1))
+    end
+
+    test "--test-scope changed narrows the suite the run pays for" do
+      record_commands()
+
+      capture_io(fn ->
+        run_failing(["--test-scope", "test/ex_quality/scope_test.exs", "--skip-credo"])
+      end)
+
+      assert ["test", "test/ex_quality/scope_test.exs"] in ran_commands()
+    end
+
+    test "--until-first-failure stops at the first failing stage, cheapest first" do
+      test_pid = self()
+
+      System
+      |> stub(:cmd, fn _cmd, args, _opts ->
+        send(test_pid, {:ran, args})
+
+        case args do
+          ["deps.unlock", "--check-unused"] -> {"Unused deps: :leftover\n", 1}
+          ["credo" | _] -> {Jason.encode!(%{issues: []}), 0}
+          ["test" | _] -> {"1 tests, 0 failures\n", 0}
+          _other -> {"", 0}
+        end
+      end)
+
+      captured = capture_io(fn -> run_failing(["--until-first-failure"]) end)
+
+      # Dependencies is the cheapest stage after the two that have to go first,
+      # so credo and the suite are never paid for.
+      commands = ran_commands()
+
+      refute Enum.any?(commands, &match?(["test" | _], &1))
+      refute Enum.any?(commands, &match?(["credo" | _], &1))
+
+      assert captured =~ "○ Tests: skipped (--until-first-failure)"
+      assert captured =~ "○ Credo: skipped (--until-first-failure)"
+    end
+
+    test "--until-first-failure runs everything when nothing fails" do
+      record_commands()
+
+      captured = capture_io(fn -> Quality.run(["--until-first-failure"]) end)
+
+      commands = ran_commands()
+
+      assert Enum.any?(commands, &match?(["test" | _], &1))
+      assert Enum.any?(commands, &match?(["credo" | _], &1))
+      assert captured =~ "✓ All quality checks passed!"
+    end
+
+    test "--report - puts the report on stdout and the human stream on stderr" do
+      record_commands()
+
+      captured = capture_io(fn -> Quality.run(["--report", "-"]) end)
+
+      report = Jason.decode!(captured)
+
+      assert report["status"] == "ok"
+      assert report["scope"] == "all"
+      assert report["profile"] == nil
+    end
+
+    test "a scoped run says so in the report root and on the Tests stage" do
+      record_commands()
+
+      captured =
+        capture_io(fn -> Quality.run(["--report", "-", "--test-scope", "test/*_test.exs"]) end)
+
+      report = Jason.decode!(captured)
+      tests = Enum.find(report["stages"], &(&1["name"] == "Tests"))
+
+      assert report["scope"] == "test/*_test.exs"
+      assert tests["scope"] == "test/*_test.exs"
+      assert tests["coverage"] == "skipped"
+      assert tests["test_files"] == ["test/ex_quality_test.exs"]
+    end
+  end
+
   defp run_failing(args) do
     Quality.run(args)
   rescue

@@ -160,6 +160,35 @@ defmodule Integration.ExQualityTest do
       assert output =~ "○ House rules: skipped (--skip house_rules)"
       refute output =~ "✓ House rules"
     end
+
+    test "--profile runs the stages it lists and reports the rest as skipped" do
+      fixture_path = copy_fixture("with_config")
+
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path, ["--profile", "loop"])
+
+      assert exit_code == 0, "Expected success. Output:\n#{output}"
+
+      assert output =~ "✓ Credo:"
+      # Everything the profile leaves out says so, built-in and custom alike, so
+      # a fast run is never a run with quiet gaps in it.
+      assert output =~ "○ Tests: skipped (not in profile :loop)"
+      assert output =~ "○ House rules: skipped (not in profile :loop)"
+      refute output =~ "✓ House rules"
+    end
+
+    test "an unknown --profile fails the run rather than falling back" do
+      fixture_path = copy_fixture("with_config")
+
+      {_output, 0} = System.cmd("mix", ["deps.get"], cd: fixture_path, stderr_to_stdout: true)
+
+      {output, exit_code} = run_quality(fixture_path, ["--profile", "lop"])
+
+      assert exit_code == 1, "Expected failure. Output:\n#{output}"
+      assert output =~ ~s(Unknown --profile "lop")
+      assert output =~ ":loop, :gate"
+    end
   end
 
   describe "umbrella fixture" do

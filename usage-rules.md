@@ -8,6 +8,7 @@ findings carrying `file:line`.
 
 | Situation | Command |
 |---|---|
+| Between edits, many times | `mix quality --test-scope changed` |
 | After editing code, iterating | `mix quality --quick` |
 | Before committing, opening a PR, or declaring work done | `mix quality` |
 | You need to route on *which* stage failed | `mix quality --report .quality.json` |
@@ -16,6 +17,38 @@ findings carrying `file:line`.
 `--quick` skips Dialyzer and coverage enforcement. Everything else, tests
 included, still runs. Use it while working; never use it as the final check
 before reporting work complete.
+
+## The inner loop
+
+`--quick` narrows *which checks run*. It still runs every test, and on a large
+suite the tests are most of the wall clock, so `--quick` between edits is not
+much cheaper than a full run.
+
+To narrow *how much code* the checks run over:
+
+```bash
+mix quality --test-scope changed        # only the tests covering your edits
+mix quality --until-first-failure       # stop at the first thing to fix
+```
+
+`--test-scope changed` maps the files you have changed, committed or not, to the
+test files covering them (`lib/foo/bar.ex` to `test/foo/bar_test.exs`; in an
+umbrella, under the same app). A scope that resolves to no test files runs the
+whole suite rather than reporting a green run of nothing.
+
+**A scoped green is not a full green.** Coverage is not measured, and Dialyzer
+still sees the whole project. Run a full `mix quality` before reporting work
+complete, and never treat a scoped run as the final check.
+
+If the project's `.quality.exs` declares `profiles:`, use the one it names
+instead of assembling flags yourself:
+
+```bash
+mix quality --profile loop
+```
+
+An unknown profile name fails the run rather than silently running everything, so
+a name that works is a name the project chose.
 
 ## Never truncate the output
 
@@ -118,6 +151,9 @@ a red run because it removes the signal:
   pass.
 - **Do not weaken a check** (`credo: [strict: false]`,
   `compile: [warnings_as_errors: false]`) in response to it failing.
+- **Do not use `--test-scope` or a profile to get past a failing stage**, and do
+  not report work complete on a scoped run. Narrowing scope is for iterating, not
+  for the final check.
 
 If a finding really is wrong for this project, say so and let the user decide.
 Report the failure rather than removing the thing that reported it.
@@ -130,7 +166,20 @@ specific stages programmatically, read a report instead of parsing the console:
 ```bash
 mix quality --report .quality.json   # human output on stdout, report to a file
 mix quality --format json            # report on stdout, human output on stderr
+mix quality --report -               # the same as --format json
 ```
+
+The root of the report says how much the run covered:
+
+```json
+{"status": "ok", "profile": "loop", "scope": "changed", "base_ref": "origin/main"}
+```
+
+`scope` is `"all"` for a full run. **Check it before treating a green run as
+evidence about the whole project**, and never lower a recorded coverage number or
+move a baseline on a run whose `scope` is not `"all"` - a scoped run does not
+measure coverage at all, and the Tests stage reports `"coverage": "skipped"`
+rather than a number.
 
 Every stage carries the same keys whatever its status:
 

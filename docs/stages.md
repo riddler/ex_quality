@@ -323,9 +323,31 @@ Runs `mix test`, or `mix coveralls` when coverage is being measured.
 Extra arguments reach the test command via `--` or `test: [args: [...]]`. See
 [configuration.md](configuration.md).
 
+### Running only part of the suite
+
+`--test-scope changed` runs only the test files covering the code that changed,
+which on a large suite is the difference between a check you can run between
+edits and one you cannot:
+
+```
+✓ Tests: 12 of 12 passed (scope changed, 3 files vs origin/main, no coverage) (2.8s)
+```
+
+A scope that resolves to no test files runs the whole suite rather than reporting
+a green run of nothing, and says so:
+
+```
+✓ Tests: 4,180 of 4,180 passed (scope changed fell back to the full suite: no test files map to the changed files) (56.8s)
+```
+
+Coverage on a scoped run is absent, not lower. See
+[Test scope](configuration.md#test-scope) for the mapping rules and
+[Reports](reports.md#the-tests-stage) for what the report carries.
+
 ## Coverage
 
-Coverage is part of the Tests stage, and `--quick` turns it off.
+Coverage is part of the Tests stage. `--quick` turns it off, and a scoped run has
+none to turn off.
 
 **The threshold is not configured in ExQuality.** It is read from whichever
 coverage tool the project already uses, so there is one source of truth:
