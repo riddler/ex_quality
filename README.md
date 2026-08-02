@@ -116,7 +116,7 @@ mix quality --profile loop            # the bundle above
 mix quality --until-first-failure     # stop at the first thing to fix
 ```
 
-See [Configuration](docs/configuration.md#test-scope).
+See [Configuration](https://hexdocs.pm/ex_quality/configuration.html#test-scope).
 
 ## Stages
 
@@ -143,7 +143,7 @@ a 30s one.
 
 Umbrella projects are first-class: tools are detected across every child app,
 findings are tagged with the app they came from, and coverage is aggregated
-across the suite. See [docs/umbrella.md](docs/umbrella.md).
+across the suite. See [Umbrella projects](https://hexdocs.pm/ex_quality/umbrella.html).
 
 ## Machine-readable reports
 
@@ -200,11 +200,11 @@ human output is rendered from, so the two can never disagree.
 `scope` says how much of the suite the run covered, and is what lets anything
 that ratchets a number, moves a baseline or gates a merge refuse to move on a
 narrow run: a green run over three test files and a green full run are different
-claims. Full schema in [docs/reports.md](docs/reports.md).
+claims. Full schema in [Reports](https://hexdocs.pm/ex_quality/reports.html).
 
 ## Working with a coding agent
 
-ExQuality ships a [`usage-rules.md`](usage-rules.md) for AI coding assistants,
+ExQuality ships a [`usage-rules.md`](https://hexdocs.pm/ex_quality/usage-rules.html) for AI coding assistants,
 readable by [usage_rules](https://hex.pm/packages/usage_rules). It tells an
 agent which command to run for which situation, how to read a failure, not to
 truncate the output, and which fixes are never acceptable - lowering a coverage
@@ -223,11 +223,11 @@ stays distinguishable from it.
 
 ## Documentation
 
-- [Configuration](docs/configuration.md) - `.quality.exs`, CLI flags, precedence
-- [Stages](docs/stages.md) - what each stage runs, reports, and how thresholds are sourced
-- [Reports](docs/reports.md) - the JSON report schema
-- [Umbrella projects](docs/umbrella.md) - detection, findings, coverage, Sobelow
-- [CI and pre-commit](docs/ci.md) - pipelines, PLT caching, hooks
+- [Configuration](https://hexdocs.pm/ex_quality/configuration.html) - `.quality.exs`, CLI flags, precedence
+- [Stages](https://hexdocs.pm/ex_quality/stages.html) - what each stage runs, reports, and how thresholds are sourced
+- [Reports](https://hexdocs.pm/ex_quality/reports.html) - the JSON report schema
+- [Umbrella projects](https://hexdocs.pm/ex_quality/umbrella.html) - detection, findings, coverage, Sobelow
+- [CI and pre-commit](https://hexdocs.pm/ex_quality/ci.html) - pipelines, PLT caching, hooks
 
 ## License
 

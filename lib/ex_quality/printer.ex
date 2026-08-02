@@ -38,16 +38,24 @@ defmodule ExQuality.Printer do
   @doc """
   Prints a stage result atomically.
 
-  Blocks until any concurrent print operation completes,
-  then prints the full result without interruption.
+  Blocks until any concurrent print operation completes, then prints the full
+  result without interruption. The sequential phases of a run print their
+  results before there is a printer to serialize against, so a result printed
+  with no printer started goes straight to the shell.
   """
   @spec print_result(ExQuality.Stage.result()) :: :ok
   def print_result(result) do
-    Agent.get_and_update(__MODULE__, fn state ->
-      # Print while holding the agent lock
-      do_print_result(result)
-      {:ok, state}
-    end)
+    case Process.whereis(__MODULE__) do
+      nil ->
+        do_print_result(result)
+
+      _pid ->
+        Agent.get_and_update(__MODULE__, fn state ->
+          # Print while holding the agent lock
+          do_print_result(result)
+          {:ok, state}
+        end)
+    end
   end
 
   @doc """
@@ -71,10 +79,18 @@ defmodule ExQuality.Printer do
     end
   end
 
+  # Colour is a second channel over the glyph, never a replacement for it: both
+  # shells run their output through `IO.ANSI.format/1`, which drops the codes
+  # when the output is not a terminal, so a CI log or a piped run still reads
+  # the status off the ✓/✗/○. `Mix.shell().error/1` already renders in red, so
+  # the failure line asks for no colour of its own.
   defp do_print_result(%{status: :ok} = result) do
-    Mix.shell().info(
-      "✓ #{result.name}: #{result.summary} (#{format_duration(result.duration_ms)})"
-    )
+    Mix.shell().info([
+      :green,
+      "✓ #{result.name}:",
+      :reset,
+      " #{result.summary} (#{format_duration(result.duration_ms)})"
+    ])
   end
 
   defp do_print_result(%{status: :error} = result) do
@@ -83,8 +99,9 @@ defmodule ExQuality.Printer do
     )
   end
 
+  # A skipped stage is context rather than a result, and dims as a whole.
   defp do_print_result(%{status: :skipped} = result) do
-    Mix.shell().info("○ #{result.name}: skipped#{skip_reason(result)}")
+    Mix.shell().info([:light_black, "○ #{result.name}: skipped#{skip_reason(result)}"])
   end
 
   defp skip_reason(%{summary: reason}) when is_binary(reason) and reason != "", do: " (#{reason})"

@@ -294,17 +294,17 @@ defmodule Mix.Tasks.Quality do
   defp run_in_phases(config, started, reporting) do
     # Phase 1: Auto-fix (format)
     format_result = run_or_skip(config, :format, "Format", &Format.run/1)
-    display_phase_result(format_result)
+    Printer.print_result(format_result)
 
     # Phase 2: Compile (blocking gate)
     compile_result = run_or_skip(config, :compile, "Compile", &Compile.run/1)
-    display_phase_result(compile_result)
+    Printer.print_result(compile_result)
 
     if compile_result.status == :error do
       # Nothing downstream ran, and a stage that says nothing reads as a stage
       # that passed, so every one of them is reported as skipped.
       not_run = analysis_stages_not_run(config, "compile failed")
-      Enum.each(not_run, &display_phase_result/1)
+      Enum.each(not_run, &Printer.print_result/1)
 
       finish(
         [format_result, compile_result | not_run],
@@ -331,12 +331,12 @@ defmodule Mix.Tasks.Quality do
   # read yet.
   defp run_serially(config, started, reporting) do
     {stages, skipped} = serial_stages(config)
-    Enum.each(skipped, &display_phase_result/1)
+    Enum.each(skipped, &Printer.print_result/1)
 
     {ran, not_run} = run_until_failure(stages, config)
 
     stopped = Enum.map(not_run, &Stage.skipped(&1.name, "--until-first-failure"))
-    Enum.each(stopped, &display_phase_result/1)
+    Enum.each(stopped, &Printer.print_result/1)
 
     finish(skipped ++ ran ++ stopped, started, reporting, config, nil)
   end
@@ -344,7 +344,7 @@ defmodule Mix.Tasks.Quality do
   defp run_until_failure(stages, config) do
     Enum.reduce_while(stages, {[], stages}, fn stage, {ran, remaining} ->
       result = stage.run.(config)
-      display_phase_result(result)
+      Printer.print_result(result)
 
       ran = ran ++ [result]
       remaining = tl(remaining)
@@ -389,7 +389,7 @@ defmodule Mix.Tasks.Quality do
       Mix.shell().info("")
       display_failure_details(failures, reporting.device)
     else
-      Mix.shell().info("\n✓ All quality checks passed!")
+      Mix.shell().info([:green, "\n✓ All quality checks passed!"])
     end
 
     emit_report(results, System.monotonic_time(:millisecond) - started, reporting, config)
@@ -523,30 +523,6 @@ defmodule Mix.Tasks.Quality do
 
   defp stage_skip_reason(config, stage), do: Config.skip_reason(config, stage)
 
-  # Compile never skips, so this renders one status it can never be given from
-  # the compile phase; the branch is kept so every status has one renderer.
-  @dialyzer {:nowarn_function, [display_phase_result: 1, skip_reason: 1]}
-  @spec display_phase_result(ExQuality.Stage.result()) :: :ok
-  defp display_phase_result(result) do
-    case result.status do
-      :ok ->
-        Mix.shell().info(
-          "✓ #{result.name}: #{result.summary} (#{format_duration(result.duration_ms)})"
-        )
-
-      :error ->
-        Mix.shell().error(
-          "✗ #{result.name}: #{result.summary} (#{format_duration(result.duration_ms)})"
-        )
-
-      :skipped ->
-        Mix.shell().info("○ #{result.name}: skipped#{skip_reason(result)}")
-    end
-  end
-
-  defp skip_reason(%{summary: reason}) when is_binary(reason) and reason != "", do: " (#{reason})"
-  defp skip_reason(_result), do: ""
-
   defp display_failure_details(failures, device) do
     Enum.each(failures, fn failure ->
       Mix.shell().info(String.duplicate("─", 60))
@@ -567,7 +543,4 @@ defmodule Mix.Tasks.Quality do
       findings -> IO.write(device, Finding.render(findings))
     end
   end
-
-  defp format_duration(ms) when ms < 1000, do: "#{ms}ms"
-  defp format_duration(ms), do: "#{Float.round(ms / 1000, 1)}s"
 end
