@@ -67,6 +67,14 @@ A keyword list at the project root. Every key is optional.
   # Global
   quick: false,
 
+  format: [
+    # Check formatting and fail on drift instead of rewriting files. The
+    # default writes, which is what the interactive loop wants; check mode is
+    # for a project whose CI should fail loudly on drift rather than have the
+    # next gate run absorb it. See docs/stages.md.
+    check: false
+  ],
+
   compile: [
     warnings_as_errors: true,
     force: false

@@ -83,6 +83,7 @@ defmodule ExQuality.Stage do
           optional(:vulnerabilities) => non_neg_integer(),
           optional(:vulnerabilities_by_severity) => [{String.t(), non_neg_integer()}],
           optional(:files_formatted) => non_neg_integer(),
+          optional(:files_needing_format) => non_neg_integer(),
           optional(:missing_translations) => non_neg_integer(),
           optional(:fuzzy_translations) => non_neg_integer(),
           optional(:file_count) => non_neg_integer(),

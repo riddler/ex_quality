@@ -14,6 +14,15 @@ defmodule ExQuality.Stages.FormatSkipTest do
   end
 
   @tag :tmp_dir
+  test "check mode skips over a missing .formatter.exs the same way", %{tmp_dir: tmp_dir} do
+    # A project that has never used the formatter has nothing to check.
+    result = File.cd!(tmp_dir, fn -> Format.run(format: [check: true]) end)
+
+    assert result.status == :skipped
+    assert result.summary == "no .formatter.exs"
+  end
+
+  @tag :tmp_dir
   test "runs when the project has one", %{tmp_dir: tmp_dir} do
     File.write!(Path.join(tmp_dir, ".formatter.exs"), "[inputs: []]")
 
