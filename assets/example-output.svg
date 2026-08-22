@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="732" height="464" viewBox="0 0 732 464" role="img" aria-label="mix quality output: green passing stages, dim skipped stages, a red failing stage and its finding">
+  <rect width="732" height="464" rx="8" fill="#11151c"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13" fill="#d8dee9">
+  <text x="22" y="35"><tspan xml:space="preserve">Running quality checks...</tspan></text>
+  <text x="22" y="75"><tspan fill="#3fb950" xml:space="preserve">✓ Format:</tspan><tspan xml:space="preserve"> No changes needed (458ms)</tspan></text>
+  <text x="22" y="95"><tspan fill="#3fb950" xml:space="preserve">✓ Compile:</tspan><tspan xml:space="preserve"> dev + test compiled (warnings as errors) (325ms)</tspan></text>
+  <text x="22" y="135"><tspan xml:space="preserve">Running analysis stages in parallel...</tspan></text>
+  <text x="22" y="175"><tspan fill="#6e7681" xml:space="preserve">○ Dialyzer: skipped (--quick)</tspan></text>
+  <text x="22" y="195"><tspan fill="#6e7681" xml:space="preserve">○ Gettext: skipped (:gettext not installed)</tspan></text>
+  <text x="22" y="215"><tspan fill="#6e7681" xml:space="preserve">○ Sobelow: skipped (:sobelow not installed)</tspan></text>
+  <text x="22" y="235"><tspan fill="#3fb950" xml:space="preserve">✓ Doctor:</tspan><tspan xml:space="preserve"> Passed (519ms)</tspan></text>
+  <text x="22" y="255"><tspan fill="#3fb950" xml:space="preserve">✓ Credo:</tspan><tspan xml:space="preserve"> No issues (775ms)</tspan></text>
+  <text x="22" y="275"><tspan fill="#ff7b72" xml:space="preserve">✗ Dependencies: 1 vulnerability (1 moderate) (2.5s)</tspan></text>
+  <text x="22" y="295"><tspan fill="#3fb950" xml:space="preserve">✓ Tests:</tspan><tspan xml:space="preserve"> 345 of 345 passed (4.1s)</tspan></text>
+  <text x="22" y="335"><tspan xml:space="preserve">────────────────────────────────────────────────────────────</tspan></text>
+  <text x="22" y="355"><tspan fill="#ff7b72" xml:space="preserve">Dependencies - FAILED</tspan></text>
+  <text x="22" y="375"><tspan xml:space="preserve">────────────────────────────────────────────────────────────</tspan></text>
+  <text x="22" y="395"><tspan xml:space="preserve">mix.lock</tspan></text>
+  <text x="22" y="415"><tspan xml:space="preserve">  -  [error] decimal 2.3.0: Unbounded exponent in `Decimal.new` enables</tspan></text>
+  <text x="22" y="435"><tspan xml:space="preserve">     unauthenticated DoS (moderate severity, patched in 3.0.0) (GHSA-rhv4-8758-jx7v)</tspan></text>
+  </g>
+</svg>
