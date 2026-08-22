@@ -128,7 +128,7 @@ defmodule ExQuality.Stages.Gettext do
   defp check_translations(config, start_time) do
     case po_files(config) do
       {[], reason} ->
-        Stage.skipped("Gettext", reason)
+        Stage.skipped("Gettext", reason, :project)
 
       {files, _reason} ->
         findings = files |> Enum.flat_map(&file_findings/1) |> Finding.sort()

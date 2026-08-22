@@ -71,6 +71,7 @@ checking `scope == "all"` never has to reason about fallbacks.
 | `name` | string | `Format`, `Compile`, `Credo`, `Dialyzer`, `Dependencies`, `Doctor`, `Gettext`, `Sobelow`, `Tests`, or a custom stage's own name |
 | `status` | `"ok"` \| `"error"` \| `"skipped"` | |
 | `summary` | string | the same one-line summary the console prints; for a skipped stage, the reason |
+| `skip_kind` | `"run"` \| `"project"` \| null | which kind of skip this is; `null` unless the stage was skipped |
 | `stats` | object | stage-specific counts, `{}` when the stage has none |
 | `findings` | array | parsed problems; empty when there are none, or when the stage could not parse its output |
 | `duration_ms` | integer | `0` for a skipped stage |
@@ -85,6 +86,7 @@ reason in `summary`:
   "name": "Dialyzer",
   "status": "skipped",
   "summary": "--quick",
+  "skip_kind": "run",
   "stats": {},
   "findings": [],
   "duration_ms": 0
@@ -95,6 +97,17 @@ Reasons are the flag (`--quick`, `--skip-credo`, `--skip <key>`), the missing
 package (`:gettext not installed`), `disabled in .quality.exs`, `compile
 failed`, or - for a custom command declaring `skip_exit_code` - whatever the
 command itself said.
+
+`skip_kind` says which of two things the skip means, structurally, so a
+consumer never parses the reason's prose. `"run"` means the caller asked for a
+narrower run - `--quick`, a `--skip`, a profile, `--until-first-failure`,
+`compile failed` - and a full `mix quality` closes the gap. `"project"` means
+the project does not check this at all - the tool is not installed, the stage
+is disabled in `.quality.exs` - and a fuller run cannot close it. A skipped
+stage that declared no kind (a custom stage that has not opted in - see
+`ExQuality.Stage.skipped/3`) reports `"project"`, so an unlabelled skip fails
+to attest as a gap rather than passing as a narrowing. `mix quality.verify`
+routes on this field; see [ci.md](ci.md#attesting-a-full-run).
 
 **Every stage the run considered appears**, skipped ones included, so absence is
 never something a caller has to interpret.

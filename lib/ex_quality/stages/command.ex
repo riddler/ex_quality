@@ -167,13 +167,16 @@ defmodule ExQuality.Stages.Command do
 
   defp result(entry, name, output, exit_code, duration_ms) do
     if exit_code == Keyword.get(entry, :skip_exit_code, :never) do
+      # A command that declares itself not applicable is a gap in what the
+      # project checks, not a narrower run, so the skip is a `:project` one.
       %{
         name: name,
         status: :skipped,
         output: output,
         stats: %{},
         summary: skip_reason(entry, output),
-        duration_ms: duration_ms
+        duration_ms: duration_ms,
+        skip_kind: :project
       }
     else
       report(entry, name, output, exit_code, duration_ms)

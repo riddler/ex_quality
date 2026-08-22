@@ -27,6 +27,52 @@ alongside the human output and read it in a later step:
 
 See [reports.md](reports.md) for the schema.
 
+## Attesting a full run
+
+A green run is not by itself evidence of a green gate. `--profile`,
+`--test-scope`, `--quick`, `--skip` and `--until-first-failure` all exit 0
+and produce `"status": "ok"`, and each of them checks less. When a person runs
+the gate they saw which one they ran; when an agent runs it unattended and
+reports "gate green" into a pull request or a commit message, nobody observed
+the run, and the narrow one and the full one produce the same three words.
+
+`mix quality.verify` is the check nobody has to remember to make:
+
+```
+$ mix quality.verify
+...the usual mix quality output...
+
+Full gate green: scope all, no profile, 9 stages considered.
+Not checked by this project at all: Sobelow (:sobelow not installed)
+```
+
+It runs the gate and attests over the report: every stage green, no profile,
+scope `"all"`, no quick mode, no stage skipped for a reason that names the run
+(`skip_kind: "run"` - see [reports.md](reports.md#stage)), and coverage
+measured when the project measures coverage at all. It exits 0 when the run
+attests and non-zero when it does not, naming every reason at once:
+
+```
+** (Mix) Not a full gate: run used profile :loop and Dialyzer was skipped (--quick).
+```
+
+A stage skipped for a project-level reason - the tool is not installed, the
+stage is disabled in `.quality.exs` - does not fail the attestation, because a
+fuller run cannot close that gap. It is named in the passing output instead:
+"full gate green" and "here is what this project never checks" are two
+different facts, and the reader needs both.
+
+Point unattended tooling - an agent pipeline's attestation command, a merge
+gate - at `mix quality.verify` rather than at `mix quality`'s exit code.
+
+**What this does not prove.** The attestation says the run was not narrowed.
+It cannot say the gate is *strong*: a project can weaken `.quality.exs` - drop
+a stage, add a permissive profile - or lower a coverage threshold, and then
+attest honestly against the weakened gate. Guarding the gate's own
+configuration is a different mechanism (a diff of the config against a base
+ref), and a caller that treats this attestation as proof of it is claiming
+more than was checked.
+
 ## Warming the Dialyzer PLT
 
 Dialyzer analyses against a PLT, a cache of every module it has already seen.

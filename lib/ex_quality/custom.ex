@@ -144,9 +144,22 @@ defmodule ExQuality.Custom do
   """
   @spec skip_reason(keyword(), keyword()) :: String.t() | nil
   def skip_reason(config, entry) do
+    case skip(config, entry) do
+      nil -> nil
+      {reason, _kind} -> reason
+    end
+  end
+
+  @doc """
+  Returns why a custom stage will not run and what kind of skip that is, or
+  `nil` when it will run. The kinds are `ExQuality.Config.skip/2`'s: a switch
+  is a `:run` skip, an `enabled: false` is a `:project` one.
+  """
+  @spec skip(keyword(), keyword()) :: {String.t(), Stage.skip_kind()} | nil
+  def skip(config, entry) do
     cond do
-      reason = Config.skip_reason(config, Keyword.fetch!(entry, :key)) -> reason
-      Keyword.get(entry, :enabled, true) == false -> "disabled in .quality.exs"
+      skip = Config.skip(config, Keyword.fetch!(entry, :key)) -> skip
+      Keyword.get(entry, :enabled, true) == false -> {"disabled in .quality.exs", :project}
       true -> nil
     end
   end

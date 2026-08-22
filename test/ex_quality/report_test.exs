@@ -56,6 +56,31 @@ defmodule ExQuality.ReportTest do
       assert stage.summary == "--quick"
       assert stage.findings == []
     end
+
+    test "a skipped stage carries its kind as skip_kind" do
+      results = [
+        Stage.skipped("Dialyzer", "--quick", :run),
+        Stage.skipped("Sobelow", ":sobelow not installed", :project)
+      ]
+
+      assert Enum.map(Report.build(results, 1).stages, & &1.skip_kind) == ["run", "project"]
+    end
+
+    test "skip_kind is null for a stage that was not skipped" do
+      [stage] = Report.build([result(status: :error)], 1).stages
+
+      assert stage.skip_kind == nil
+    end
+
+    test "a skipped stage with no kind reports project, the conservative default" do
+      # A custom stage that built its skipped result by hand, before the kind
+      # existed: it must land as a standing gap, never as a silent narrowing.
+      unlabelled = result(status: :skipped, summary: "not applicable here")
+
+      [stage] = Report.build([unlabelled], 1).stages
+
+      assert stage.skip_kind == "project"
+    end
   end
 
   describe "how much the run covered" do
