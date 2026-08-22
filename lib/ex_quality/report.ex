@@ -38,15 +38,23 @@ defmodule ExQuality.Report do
           },
           {
             "name": "Dialyzer", "status": "skipped",
-            "summary": "--quick", "duration_ms": 0,
-            "stats": {}, "findings": []
+            "summary": "--quick", "skip_kind": "run",
+            "duration_ms": 0, "stats": {}, "findings": []
           }
         ]
       }
 
   Every stage carries the same keys whatever its status, so a consumer reads
   one field for the explanation rather than branching: a skipped stage puts its
-  reason in `summary`, exactly as `ExQuality.Stage.skipped/2` records it.
+  reason in `summary`, exactly as `ExQuality.Stage.skipped/3` records it.
+
+  `skip_kind` is `null` unless the stage was skipped, `"run"` when the skip
+  names this run (a full `mix quality` closes it) and `"project"` when it
+  names the project (a fuller run cannot close it). It is what lets a consumer
+  such as `mix quality.verify` tell the two apart without parsing the reason's
+  prose. A skipped stage that carries no kind - a custom stage that has not
+  opted in - reports `"project"`, the conservative direction. See
+  `t:ExQuality.Stage.skip_kind/0`.
 
   A stage that failed without producing findings carries its tool's full output
   under `output` instead, mirroring the human renderer. Findings are the parsed
@@ -158,6 +166,7 @@ defmodule ExQuality.Report do
       name: result.name,
       status: to_string(result.status),
       summary: result.summary,
+      skip_kind: skip_kind(result),
       duration_ms: result.duration_ms,
       stats: stats(result.stats),
       findings: Enum.map(findings, &finding/1)
@@ -165,6 +174,15 @@ defmodule ExQuality.Report do
     |> Map.merge(Map.get(result, :meta, %{}))
     |> put_output(result, findings)
   end
+
+  # `:project` is the default for a skipped stage that carries no kind - a
+  # custom stage that has not opted in - because an unlabelled skip should
+  # fail to attest as a standing gap rather than pass as a narrowing.
+  defp skip_kind(%{status: :skipped} = result) do
+    result |> Map.get(:skip_kind, :project) |> to_string()
+  end
+
+  defp skip_kind(_result), do: nil
 
   # Same rule as the human renderer: findings when the stage parsed its output,
   # the tool's output verbatim when it did not. Output is carried only for a

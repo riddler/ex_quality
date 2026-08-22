@@ -119,6 +119,23 @@ defmodule ExQuality.Stages.Test do
     end
   end
 
+  @doc """
+  Whether a full, unnarrowed run under `config` would measure coverage.
+
+  `mix quality.verify` asks this to tell "coverage was narrowed away by this
+  run" from "this project never measures coverage" - the same run-vs-project
+  distinction `skip_kind` carries for stages, answered here for a number that
+  is not a stage of its own. Run-level narrowings (`--quick`, a scope) are
+  ignored; the project-level `test: [coverage: false]` and the absence of any
+  coverage tool or threshold are not.
+  """
+  @spec measures_coverage?(keyword()) :: boolean()
+  def measures_coverage?(config) do
+    mode = config |> Keyword.delete(:quick) |> coverage_mode(%{files: :all})
+
+    mode != :plain
+  end
+
   defp resolve_scope(config) do
     base_ref = config |> Keyword.get(:test, []) |> Keyword.get(:base_ref)
 

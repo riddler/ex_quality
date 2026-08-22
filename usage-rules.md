@@ -11,6 +11,7 @@ findings carrying `file:line`.
 | Between edits, many times | `mix quality --test-scope changed` |
 | After editing code, iterating | `mix quality --quick` |
 | Before committing, opening a PR, or declaring work done | `mix quality` |
+| Reporting "gate green" where nobody watched the run | `mix quality.verify` |
 | You need to route on *which* stage failed | `mix quality --report .quality.json` |
 | Fresh checkout or container, Dialyzer installed | `mix quality.plt` once, first |
 
@@ -102,7 +103,10 @@ it does. That is worth telling the user, not passing over.
 The reason distinguishes the two kinds. `:credo not installed` or `disabled in
 .quality.exs` is a gap in what the project checks at all. `--quick`,
 `not in profile :loop` and `--until-first-failure` are gaps in *this* run,
-because you asked for a narrower one; a full `mix quality` closes them.
+because you asked for a narrower one; a full `mix quality` closes them. In a
+JSON report the distinction is structural: each skipped stage carries
+`skip_kind: "project"` or `skip_kind: "run"`, so read the field rather than
+the sentence.
 
 Failures print below the summary, grouped by file:
 
@@ -228,6 +232,20 @@ failure, one of the two is always present.
 
 A project can add stages of its own, so `name` is not one of a fixed set. Route
 on `status` and `findings`; treat `name` as a label.
+
+## Attesting a full gate
+
+When you are about to write "gate green" somewhere a person will rely on it -
+a PR description, a commit message, a ticket - and nobody watched the run, use
+`mix quality.verify` instead of reading `mix quality`'s exit code. It runs the
+gate and then checks that what ran was the full one: no profile, scope `all`,
+no quick mode, no stage skipped for a run-level reason, coverage measured when
+the project measures it. It exits non-zero and names every reason when the run
+was narrower than that, and on success it also names what the project never
+checks at all, which is worth passing on to the user.
+
+Do not weaken anything to make it attest. The attestation failing means the
+run was narrowed; run the full `mix quality.verify` with no flags.
 
 ## Configuration
 

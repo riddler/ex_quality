@@ -370,6 +370,34 @@ defmodule ExQuality.Config do
   """
   @spec skip_reason(keyword(), atom()) :: String.t() | nil
   def skip_reason(config, stage) do
+    case skip(config, stage) do
+      nil -> nil
+      {reason, _kind} -> reason
+    end
+  end
+
+  @doc """
+  Returns why a stage will not run and what kind of skip that is, or `nil`
+  when it will run.
+
+  The kind is `:run` when the skip came from the command line - a switch or a
+  profile selected for this invocation - because a full `mix quality` closes
+  it. It is `:project` when the skip came from `.quality.exs` or from the tool
+  not being installed, because a fuller run cannot close that. See
+  `t:ExQuality.Stage.skip_kind/0`.
+
+  ## Examples
+
+      config = ExQuality.Config.load(skip_credo: true)
+      ExQuality.Config.skip(config, :credo)
+      #=> {"--skip-credo", :run}
+
+      config = ExQuality.Config.load()
+      ExQuality.Config.skip(config, :doctor)
+      #=> {":doctor not installed", :project}
+  """
+  @spec skip(keyword(), atom()) :: {String.t(), ExQuality.Stage.skip_kind()} | nil
+  def skip(config, stage) do
     if stage_enabled?(config, stage) do
       nil
     else
@@ -378,10 +406,10 @@ defmodule ExQuality.Config do
       case Keyword.get(stage_config, :disabled_by) do
         # The generic switch carries its own spelling, because `--skip nullability`
         # names a stage that has no `--skip-nullability` to point at.
-        {:cli, switch} -> switch
-        :cli -> "--skip-#{stage}"
-        :config -> "disabled in .quality.exs"
-        _other -> unavailable_reason(stage)
+        {:cli, switch} -> {switch, :run}
+        :cli -> {"--skip-#{stage}", :run}
+        :config -> {"disabled in .quality.exs", :project}
+        _other -> {unavailable_reason(stage), :project}
       end
     end
   end

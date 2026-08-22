@@ -169,6 +169,44 @@ defmodule ExQuality.ConfigTest do
     end
   end
 
+  describe "skip/2" do
+    test "returns nil when the stage will run" do
+      config = [credo: [enabled: :auto, available: true]]
+
+      assert Config.skip(config, :credo) == nil
+    end
+
+    test "a CLI switch is a run-level skip: a full run without it closes the gap" do
+      config = Config.load(skip_dialyzer: true)
+
+      assert Config.skip(config, :dialyzer) == {"--skip-dialyzer", :run}
+    end
+
+    test "the generic --skip switch is a run-level skip too" do
+      config = [nullability: [enabled: false, disabled_by: {:cli, "--skip nullability"}]]
+
+      assert Config.skip(config, :nullability) == {"--skip nullability", :run}
+    end
+
+    test "a profile's allow-list is a run-level skip" do
+      config = Config.apply_profile([profiles: [loop: [stages: [:format]]]], "loop")
+
+      assert Config.skip(config, :dialyzer) == {"not in profile :loop", :run}
+    end
+
+    test "the config file is a project-level skip: a fuller run cannot close it" do
+      config = [credo: [enabled: false, disabled_by: :config]]
+
+      assert Config.skip(config, :credo) == {"disabled in .quality.exs", :project}
+    end
+
+    test "a missing tool is a project-level skip" do
+      config = [dialyzer: [enabled: :auto, available: false]]
+
+      assert Config.skip(config, :dialyzer) == {":dialyxir not installed", :project}
+    end
+  end
+
   describe "apply_profile/2" do
     @profiles [
       profiles: [

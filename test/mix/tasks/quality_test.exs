@@ -529,6 +529,22 @@ defmodule Mix.Tasks.QualityTest do
       assert credo["summary"] == "--skip-credo"
     end
 
+    test "the report says which kind of skip each skipped stage is" do
+      path = Path.join(System.tmp_dir!(), "quality-#{System.unique_integer([:positive])}.json")
+      on_exit(fn -> File.rm(path) end)
+
+      capture_io(fn -> run_failing(["--report", path, "--skip-credo"]) end)
+
+      report = path |> File.read!() |> Jason.decode!()
+      kinds = Map.new(report["stages"], &{&1["name"], &1["skip_kind"]})
+
+      # The switch narrows this run; the missing tool is the project's gap;
+      # a stage that ran carries null.
+      assert kinds["Credo"] == "run"
+      assert kinds["Dialyzer"] == "project"
+      assert kinds["Format"] == nil
+    end
+
     test "a run that stops at compile still accounts for every later stage" do
       path = Path.join(System.tmp_dir!(), "quality-#{System.unique_integer([:positive])}.json")
       on_exit(fn -> File.rm(path) end)

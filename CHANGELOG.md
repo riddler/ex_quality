@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`mix quality.verify` runs the gate and attests that what ran was the *full* gate.** A green run is not by itself evidence of a green gate: `--profile`, `--test-scope`, `--quick`, `--skip` and `--until-first-failure` all produce `"status": "ok"`, and each checks less. When an agent runs the gate unattended and reports "gate green", nobody observed the run, and the narrow one and the full one produce the same three words. The task runs `mix quality` in-process with the caller's flags, then attests over the report: every stage green, no profile, scope `all`, no quick mode, no stage skipped for a run-level reason, and coverage measured when the project measures it. It exits non-zero naming every failed condition at once. A stage skipped for a project-level reason (`:sobelow not installed`, `disabled in .quality.exs`) attests but is named in the output - "full gate green" and "here is what this project never checks" are two different facts, and the reader needs both. The attestation deliberately does not prove the gate is *strong*: a weakened `.quality.exs` attests honestly against the weakened gate, and the docs say so
+- **Skipped stages carry a structural `skip_kind` in the report**: `"run"` when the skip names this run (`--quick`, a `--skip`, a profile, `--until-first-failure`, `compile failed`) and a full `mix quality` closes it, `"project"` when the project does not check this at all (tool not installed, disabled in `.quality.exs`) and a fuller run cannot close it, `null` when the stage was not skipped. The two kinds were previously distinguishable only by reading the reason's prose, which was never a contract - rephrasing a summary in a patch release would have silently turned a narrowed run into an attested one downstream. `ExQuality.Stage.skipped/3` takes the kind as an optional third argument; the default for an unlabelled skip is `:project`, the conservative direction, so a custom stage that has not opted in fails to attest as a gap rather than passing as a narrowing
+
 ## [0.13.0] - 2026-08-02
 
 ### Changed

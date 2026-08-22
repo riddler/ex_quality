@@ -41,7 +41,7 @@ defmodule ExQuality.Stages.Format do
         format()
 
       true ->
-        ExQuality.Stage.skipped("Format", "no .formatter.exs")
+        ExQuality.Stage.skipped("Format", "no .formatter.exs", :project)
     end
   end
 

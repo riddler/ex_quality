@@ -238,6 +238,24 @@ defmodule Mix.Tasks.Quality do
   Runs the quality check task.
   """
   def run(args) do
+    case execute(args) do
+      %{failure: nil} -> :ok
+      %{failure: message} -> Mix.raise(message)
+    end
+  end
+
+  @doc false
+  # Runs the gate exactly as `mix quality` does - same printing, same report
+  # emission - and returns `%{report: report, config: config, failure: message}`
+  # instead of exiting, `failure` being `nil` on a green run. This is the
+  # in-process entry point `mix quality.verify` attests over, so the run it
+  # verifies is the run that printed, not a second one.
+  @spec execute([String.t()]) :: %{
+          report: ExQuality.Report.t(),
+          config: keyword(),
+          failure: String.t() | nil
+        }
+  def execute(args) do
     {opts, remaining} = OptionParser.parse!(args, switches: @switches)
     opts = if remaining != [], do: Keyword.put(opts, :test_args, remaining), else: opts
     config = Config.load(opts)
@@ -335,7 +353,7 @@ defmodule Mix.Tasks.Quality do
 
     {ran, not_run} = run_until_failure(stages, config)
 
-    stopped = Enum.map(not_run, &Stage.skipped(&1.name, "--until-first-failure"))
+    stopped = Enum.map(not_run, &Stage.skipped(&1.name, "--until-first-failure", :run))
     Enum.each(stopped, &Printer.print_result/1)
 
     finish(skipped ++ ran ++ stopped, started, reporting, config, nil)
@@ -360,10 +378,13 @@ defmodule Mix.Tasks.Quality do
     {stages, skipped} =
       config
       |> all_candidates()
-      |> Enum.split_with(&is_nil(&1.skip_reason))
+      |> Enum.split_with(&is_nil(&1.skip))
 
-    {Enum.sort_by(stages, &cost_index(&1.key)),
-     Enum.map(skipped, &Stage.skipped(&1.name, &1.skip_reason))}
+    {Enum.sort_by(stages, &cost_index(&1.key)), Enum.map(skipped, &skipped_result/1)}
+  end
+
+  defp skipped_result(%{name: name, skip: {reason, kind}}) do
+    Stage.skipped(name, reason, kind)
   end
 
   defp cost_index(key) do
@@ -374,14 +395,16 @@ defmodule Mix.Tasks.Quality do
   # than run. Format and compile have always run unconditionally, and they still
   # do unless something says otherwise.
   defp run_or_skip(config, key, name, run) do
-    case Config.skip_reason(config, key) do
+    case Config.skip(config, key) do
       nil -> run.(config)
-      reason -> Stage.skipped(name, reason)
+      {reason, kind} -> Stage.skipped(name, reason, kind)
     end
   end
 
-  # One exit for every run: render the human verdict, emit the report, then
-  # fail. The report is written before raising so a caller still gets it.
+  # One exit for every run: render the human verdict, emit the report, and
+  # hand the verdict back. The report is built whether or not anyone asked for
+  # it on disk, because `execute/1`'s caller reads it either way, and it is
+  # written before the failure propagates so a caller still gets it.
   defp finish(results, started, reporting, config, message) do
     failures = Enum.filter(results, &(&1.status == :error))
 
@@ -392,17 +415,21 @@ defmodule Mix.Tasks.Quality do
       Mix.shell().info([:green, "\n✓ All quality checks passed!"])
     end
 
-    emit_report(results, System.monotonic_time(:millisecond) - started, reporting, config)
+    report = Report.build(results, System.monotonic_time(:millisecond) - started, config)
+    emit_report(report, reporting)
 
-    if failures != [] do
-      Mix.raise(message || "#{length(failures)} quality check(s) failed")
-    end
+    failure =
+      if failures != [] do
+        message || "#{length(failures)} quality check(s) failed"
+      end
+
+    %{report: report, config: config, failure: failure}
   end
 
-  defp emit_report(_results, _duration_ms, %{format: :human, path: nil}, _config), do: :ok
+  defp emit_report(_report, %{format: :human, path: nil}), do: :ok
 
-  defp emit_report(results, duration_ms, reporting, config) do
-    json = results |> Report.build(duration_ms, config) |> Report.encode!()
+  defp emit_report(report, reporting) do
+    json = Report.encode!(report)
 
     if reporting.path, do: File.write!(reporting.path, json)
     if reporting.format == :json, do: IO.write(json)
@@ -447,9 +474,9 @@ defmodule Mix.Tasks.Quality do
   # whether they run.
   defp build_analysis_stages(config) do
     candidates = candidate_stages(config) ++ [test_stage(config)]
-    {stages, skipped} = Enum.split_with(candidates, &is_nil(&1.skip_reason))
+    {stages, skipped} = Enum.split_with(candidates, &is_nil(&1.skip))
 
-    {stages, Enum.map(skipped, &Stage.skipped(&1.name, &1.skip_reason))}
+    {stages, Enum.map(skipped, &skipped_result/1)}
   end
 
   # Built-ins first, then the project's own stages, in declaration order. Both
@@ -463,7 +490,7 @@ defmodule Mix.Tasks.Quality do
           name,
           Stage.kind(module, config),
           &module.run/1,
-          stage_skip_reason(config, key)
+          stage_skip(config, key)
         )
       end)
 
@@ -474,7 +501,7 @@ defmodule Mix.Tasks.Quality do
           Keyword.fetch!(entry, :name),
           Custom.kind(entry, config),
           Custom.runner(entry),
-          Custom.skip_reason(config, entry)
+          Custom.skip(config, entry)
         )
       end)
 
@@ -486,8 +513,8 @@ defmodule Mix.Tasks.Quality do
   # phases to be ahead of.
   defp all_candidates(config) do
     [
-      stage(:format, "Format", :writer, &Format.run/1, Config.skip_reason(config, :format)),
-      stage(:compile, "Compile", :writer, &Compile.run/1, Config.skip_reason(config, :compile)),
+      stage(:format, "Format", :writer, &Format.run/1, Config.skip(config, :format)),
+      stage(:compile, "Compile", :writer, &Compile.run/1, Config.skip(config, :compile)),
       test_stage(config)
     ] ++ candidate_stages(config)
   end
@@ -498,30 +525,32 @@ defmodule Mix.Tasks.Quality do
       "Tests",
       Stage.kind(Test, config),
       &Test.run/1,
-      Config.skip_reason(config, :test)
+      Config.skip(config, :test)
     )
   end
 
-  defp stage(key, name, kind, run, skip_reason) do
-    %{key: key, name: name, kind: kind, run: run, skip_reason: skip_reason}
+  defp stage(key, name, kind, run, skip) do
+    %{key: key, name: name, kind: kind, run: run, skip: skip}
   end
 
   # The stages of a run that stopped before the analysis phase: the ones that
-  # would have run take the given reason, the rest keep their own.
+  # would have run take the given reason, the rest keep their own. The skip is
+  # a `:run` one - this run stopped early; a run whose compile passes checks
+  # them.
   defp analysis_stages_not_run(config, reason) do
     {stages, skipped} = build_analysis_stages(config)
 
-    skipped ++ Enum.map(stages, &Stage.skipped(&1.name, reason))
+    skipped ++ Enum.map(stages, &Stage.skipped(&1.name, reason, :run))
   end
 
-  defp stage_skip_reason(config, :dialyzer) do
-    case Config.skip_reason(config, :dialyzer) do
-      nil -> if Keyword.get(config, :quick, false), do: "--quick"
-      reason -> reason
+  defp stage_skip(config, :dialyzer) do
+    case Config.skip(config, :dialyzer) do
+      nil -> if Keyword.get(config, :quick, false), do: {"--quick", :run}
+      skip -> skip
     end
   end
 
-  defp stage_skip_reason(config, stage), do: Config.skip_reason(config, stage)
+  defp stage_skip(config, stage), do: Config.skip(config, stage)
 
   defp display_failure_details(failures, device) do
     Enum.each(failures, fn failure ->
