@@ -21,6 +21,24 @@ it never had the config file, so there is nothing to enforce. A `mix format`
 that fails - a syntax error, say - is reported as a failure, not as a green
 tick over a file that could not be parsed.
 
+By default this is the only stage that modifies code, which is right for the
+interactive loop and has a consequence for CI: formatting can never fail a
+run, so drift on one branch goes green and lands as reflow noise in the next
+branch to touch those files. `format: [check: true]` in `.quality.exs` makes
+the stage check instead - drift fails the stage with the file list and
+nothing is written:
+
+```
+✗ Format: 3 files need formatting
+```
+
+The stage keeps the name `Format` in both modes, so nothing that routes on
+the report has to know which produced it. The stats key is the tell:
+`files_formatted` in the default mode, `files_needing_format` in check mode,
+because "3 files were rewritten" and "3 files would be" are different claims.
+In check mode run `mix format` yourself before committing - the gate no
+longer does it for you.
+
 ## Compile
 
 Compiles dev and test in parallel, with `--warnings-as-errors` by default.

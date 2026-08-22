@@ -49,6 +49,8 @@ defmodule ExQuality.Config do
   - `enabled` - :auto (use auto-detection) | true (force enable) | false (force disable)
 
   Stage-specific options:
+  - `format.check` - Check formatting and fail on drift instead of rewriting
+    files (default: false). See `ExQuality.Stages.Format`
   - `compile.warnings_as_errors` - Treat warnings as errors (default: true)
   - `compile.force` - Recompile from scratch (default: false)
   - `credo.strict` - Use strict mode (default: true)
@@ -107,6 +109,12 @@ defmodule ExQuality.Config do
     profiles: [],
 
     # Stage-specific options
+    format: [
+      # check: true makes the stage fail on drift instead of rewriting it.
+      # Writing is the default because it is what the interactive loop wants,
+      # and because it is what the stage has always done.
+      check: false
+    ],
     compile: [
       warnings_as_errors: true,
       force: false

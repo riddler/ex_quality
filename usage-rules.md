@@ -125,7 +125,7 @@ underlying tool to get detail that is already on screen.
 
 | Stage | The finding is | Fix by |
 |---|---|---|
-| Format | `mix format` failed, usually a syntax error | fixing the syntax; formatting itself is automatic |
+| Format | `mix format` failed, usually a syntax error - or, in check mode, files that need formatting | fixing the syntax; formatting is automatic unless the project set `format: [check: true]`, see below |
 | Compile | a compiler error or warning | fixing it at `file:line`; nothing downstream ran, so expect more after |
 | Credo | a check module and its message | addressing it at `file:line`, or configuring the check in `.credo.exs` if it is genuinely wrong for the project |
 | Dialyzer | a warning name (`no_return`, `pattern_match`) plus dialyxir's explanation | correcting the type or the code; a spec that contradicts the code is the code's problem more often than the spec's |
@@ -139,6 +139,21 @@ underlying tool to get detail that is already on screen.
 
 Coverage failures name the modules that are under the threshold. Write tests
 for those modules. Do not test unrelated code to raise the average.
+
+## Format stage modes
+
+By default the Format stage rewrites drifting files, so formatting never
+fails a run and you never run `mix format` yourself. A project can set
+
+```elixir
+format: [check: true]
+```
+
+in `.quality.exs`, and then the stage *checks* instead: drift fails the stage
+with the file list and the gate writes nothing. In that mode run `mix format`
+yourself before committing - the gate no longer formats for you. Read the
+project's `.quality.exs` to know which mode you are in, and do not flip the
+option to make a run pass in either direction.
 
 ## Mix aliases
 

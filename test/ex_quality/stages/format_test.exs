@@ -276,6 +276,133 @@ defmodule ExQuality.Stages.FormatTest do
     end
   end
 
+  # In check mode the only System.cmd expectation set is the check itself, so
+  # a `mix format` write would fail the test as an unexpected call: the
+  # no-write property is asserted by construction, not just by status.
+  describe "run/1 - check mode, clean tree" do
+    setup do
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {"", 0}
+      end)
+
+      :ok
+    end
+
+    test "passes without writing" do
+      result = Format.run(format: [check: true])
+
+      assert result.name == "Format"
+      assert result.status == :ok
+      assert result.output == ""
+      assert result.stats.files_needing_format == 0
+      assert result.summary == "No changes needed"
+    end
+  end
+
+  describe "run/1 - check mode, drift" do
+    setup do
+      check_output = """
+      lib/my_app/user.ex
+      test/my_app_test.exs
+      ** (Mix) mix format failed due to --check-formatted
+      """
+
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {check_output, 1}
+      end)
+
+      :ok
+    end
+
+    test "fails with the file list, leaving the tree untouched" do
+      result = Format.run(format: [check: true])
+
+      assert result.status == :error
+      assert result.summary == "2 files need formatting"
+      assert result.stats.files_needing_format == 2
+
+      lines = String.split(result.output, "\n", trim: true)
+      assert "lib/my_app/user.ex" in lines
+      assert "test/my_app_test.exs" in lines
+    end
+  end
+
+  describe "run/1 - check mode, one drifting file" do
+    test "a single file is a singular summary" do
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {"lib/my_app/user.ex\n", 1}
+      end)
+
+      result = Format.run(format: [check: true])
+
+      assert result.summary == "1 file needs formatting"
+      assert result.stats.files_needing_format == 1
+    end
+  end
+
+  describe "run/1 - check mode, mix format itself fails" do
+    setup do
+      # A syntax error names no .ex file as a bare line, so there is no drift
+      # list to report - only the tool's own account of what broke.
+      check_output = """
+      ** (SyntaxError) invalid syntax found on lib/my_app/user.ex:12:1:
+          (elixir 1.17.0) lib/code.ex:1234: Code.string_to_quoted!/2
+      """
+
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {check_output, 1}
+      end)
+
+      :ok
+    end
+
+    test "reports the failure with the tool's output, same as write mode" do
+      result = Format.run(format: [check: true])
+
+      assert result.status == :error
+      assert result.summary == "mix format failed"
+      assert result.output =~ "SyntaxError"
+      assert result.output =~ "lib/my_app/user.ex:12:1"
+    end
+  end
+
+  describe "run/1 - check mode is off by default" do
+    test "an absent option behaves exactly as before" do
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {"lib/my_app/user.ex\n", 1}
+      end)
+      |> expect(:cmd, fn "mix", ["format"], _opts ->
+        {"", 0}
+      end)
+
+      result = Format.run(format: [])
+
+      assert result.status == :ok
+      assert result.summary == "Formatted 1 file"
+      assert result.stats.files_formatted == 1
+    end
+
+    test "check: false behaves exactly as before" do
+      System
+      |> expect(:cmd, fn "mix", ["format", "--check-formatted"], _opts ->
+        {"", 0}
+      end)
+      |> expect(:cmd, fn "mix", ["format"], _opts ->
+        {"", 0}
+      end)
+
+      result = Format.run(format: [check: false])
+
+      assert result.status == :ok
+      assert result.stats.files_formatted == 0
+    end
+  end
+
   describe "run/1 - valid code" do
     setup do
       # Mock: mix format --check-formatted returns 0 (all files formatted)
