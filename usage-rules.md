@@ -131,6 +131,7 @@ underlying tool to get detail that is already on screen.
 | Dialyzer | a warning name (`no_return`, `pattern_match`) plus dialyxir's explanation | correcting the type or the code; a spec that contradicts the code is the code's problem more often than the spec's |
 | Dependencies | an unused dep, or an advisory with the version that fixes it | `mix deps.unlock <pkg>` for unused; upgrading to the patched version for an advisory |
 | Doctor | documentation coverage below the project's threshold | writing the missing `@moduledoc`/`@doc` |
+| Docs | an ExDoc warning - a reference to a function that does not exist, a link or anchor that resolves nowhere | fixing the reference at `file:line`; do not delete the doc to silence it |
 | Gettext | missing or fuzzy translations | translating them, or resolving the fuzzy entries |
 | any stage | `mix <task> is aliased in mix.exs` | renaming the alias, see below |
 | a custom stage | whatever the project's own check reports | fixing it at `file:line`; the check is the project's, so ask before changing what it enforces |
@@ -157,8 +158,9 @@ option to make a run pass in either direction.
 
 ## Mix aliases
 
-ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix format`,
-`mix sobelow`, `mix deps.unlock` and `mix test.coverage`. Mix resolves aliases
+ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix docs`,
+`mix format`, `mix sobelow`, `mix deps.unlock` and `mix test.coverage`. Mix
+resolves aliases
 before tasks, so a `mix.exs` alias with one of those names changes what is
 measured, silently.
 

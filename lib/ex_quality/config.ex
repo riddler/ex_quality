@@ -60,6 +60,10 @@ defmodule ExQuality.Config do
   - `dependencies.check_unused` - Check for unused dependencies (default: true)
   - `dependencies.audit` - Run security audit if available (default: :auto)
   - `doctor.summary_only` - Show only summary (default: false)
+  - `docs.enabled` - false (default) | :auto (on when `:ex_doc` is installed) |
+    true (forced). Off by default, unlike the other tool-backed stages, so a
+    gate does not turn red on upgrade just because the project publishes docs.
+    See `ExQuality.Stages.Docs`
   - `gettext.source_locale` - The locale the source is written in, whose `.po`
     files are not checked (default: `"en"`)
   - `gettext.exclude` - Basenames to skip (default: `["errors.po"]`)
@@ -133,6 +137,16 @@ defmodule ExQuality.Config do
     doctor: [
       enabled: :auto,
       summary_only: false
+    ],
+    docs: [
+      # Off by default, unlike the other tool-backed stages: nearly every
+      # published package has :ex_doc, so enabling on detection would turn
+      # currently-green gates red on upgrade. `enabled: :auto` opts in with
+      # detection; `enabled: true` forces. The marker names the default as the
+      # source of the skip, so the reason can say "opt-in" rather than lying
+      # about the tool being missing.
+      enabled: false,
+      disabled_by: :default
     ],
     gettext: [
       enabled: :auto,
@@ -256,6 +270,7 @@ defmodule ExQuality.Config do
     :credo,
     :dialyzer,
     :doctor,
+    :docs,
     :gettext,
     :sobelow,
     :dependencies
@@ -414,11 +429,32 @@ defmodule ExQuality.Config do
       case Keyword.get(stage_config, :disabled_by) do
         # The generic switch carries its own spelling, because `--skip nullability`
         # names a stage that has no `--skip-nullability` to point at.
-        {:cli, switch} -> {switch, :run}
-        :cli -> {"--skip-#{stage}", :run}
-        :config -> {"disabled in .quality.exs", :project}
-        _other -> {unavailable_reason(stage), :project}
+        {:cli, switch} ->
+          {switch, :run}
+
+        :cli ->
+          {"--skip-#{stage}", :run}
+
+        :config ->
+          {"disabled in .quality.exs", :project}
+
+        :default ->
+          {default_skip_reason(stage, stage_config), :project}
+
+        _other ->
+          {unavailable_reason(stage), :project}
       end
+    end
+  end
+
+  # A stage that ships off (`disabled_by: :default` in `@defaults`) says so,
+  # unless the project already opted in with `enabled: :auto` and the skip is
+  # really the tool being missing.
+  defp default_skip_reason(stage, stage_config) do
+    if Keyword.get(stage_config, :enabled) == false do
+      "opt-in; set #{stage}: [enabled: :auto] in .quality.exs"
+    else
+      unavailable_reason(stage)
     end
   end
 
@@ -436,6 +472,7 @@ defmodule ExQuality.Config do
       credo: [available: tools.credo],
       dialyzer: [available: tools.dialyzer],
       doctor: [available: tools.doctor],
+      docs: [available: tools.docs],
       gettext: [available: tools.gettext],
       sobelow: [available: tools.sobelow],
       dependencies: [audit_available: tools.audit],
@@ -531,7 +568,7 @@ defmodule ExQuality.Config do
 
   # Every stage has a --skip-<stage> switch, and they all mean the same thing,
   # so they are one table rather than one branch each.
-  @skip_switches [:credo, :dialyzer, :doctor, :gettext, :sobelow, :dependencies]
+  @skip_switches [:credo, :dialyzer, :doctor, :docs, :gettext, :sobelow, :dependencies]
 
   defp cli_to_config(opts) do
     config =

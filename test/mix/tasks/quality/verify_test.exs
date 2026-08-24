@@ -181,6 +181,7 @@ defmodule Mix.Tasks.Quality.VerifyTest do
           credo: false,
           dialyzer: false,
           doctor: false,
+          docs: false,
           gettext: false,
           coverage: false,
           audit: false,
@@ -203,7 +204,7 @@ defmodule Mix.Tasks.Quality.VerifyTest do
 
       # The gate's own stream printed first, then the attestation over it.
       assert captured =~ "All quality checks passed"
-      assert captured =~ "Full gate green: scope all, no profile, 9 stages considered."
+      assert captured =~ "Full gate green: scope all, no profile, 10 stages considered."
 
       # The stages this project never checks are standing gaps, named.
       assert captured =~ "Not checked by this project at all:"

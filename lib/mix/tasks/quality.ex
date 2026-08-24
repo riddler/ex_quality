@@ -26,6 +26,7 @@ defmodule Mix.Tasks.Quality do
   - `--skip-dialyzer` - Skip Dialyzer type checking
   - `--skip-credo` - Skip Credo static analysis
   - `--skip-doctor` - Skip Doctor documentation checks
+  - `--skip-docs` - Skip the Docs (ExDoc warnings) stage
   - `--skip-gettext` - Skip Gettext translation checks
   - `--skip-sobelow` - Skip Sobelow security analysis
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
@@ -66,6 +67,11 @@ defmodule Mix.Tasks.Quality do
   - `:sobelow` → enables Sobelow security analysis
   - `:mix_audit` → enables security audit in Dependencies stage
   - `:excoveralls` → uses `mix coveralls` instead of `mix test`
+
+  The Docs stage (ExDoc warnings) is the exception: it is opt-in, via
+  `docs: [enabled: :auto]` in `.quality.exs`, because nearly every published
+  package has `:ex_doc` and enabling on detection would move existing gates.
+  See `ExQuality.Stages.Docs`.
 
   ## Quick Mode
 
@@ -180,6 +186,7 @@ defmodule Mix.Tasks.Quality do
   alias ExQuality.Stages.Credo
   alias ExQuality.Stages.Dependencies
   alias ExQuality.Stages.Dialyzer
+  alias ExQuality.Stages.Docs
   alias ExQuality.Stages.Doctor
   alias ExQuality.Stages.Format
   alias ExQuality.Stages.Gettext
@@ -192,6 +199,7 @@ defmodule Mix.Tasks.Quality do
     {:credo, Credo, "Credo"},
     {:dialyzer, Dialyzer, "Dialyzer"},
     {:doctor, Doctor, "Doctor"},
+    {:docs, Docs, "Docs"},
     {:gettext, Gettext, "Gettext"},
     {:sobelow, Sobelow, "Sobelow"},
     {:dependencies, Dependencies, "Dependencies"}
@@ -202,6 +210,7 @@ defmodule Mix.Tasks.Quality do
     skip_dialyzer: :boolean,
     skip_credo: :boolean,
     skip_doctor: :boolean,
+    skip_docs: :boolean,
     skip_gettext: :boolean,
     skip_sobelow: :boolean,
     skip_dependencies: :boolean,
@@ -229,6 +238,7 @@ defmodule Mix.Tasks.Quality do
     :gettext,
     :credo,
     :doctor,
+    :docs,
     :custom,
     :dialyzer,
     :test

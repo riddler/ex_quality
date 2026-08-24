@@ -39,6 +39,8 @@ defmodule ExQuality.ToolsTest do
       assert result.coverage == true
       assert result.doctor == true
       assert result.audit == true
+      # ex_doc is a dev dependency of every published package, this one included
+      assert result.docs == true
 
       # This tool is NOT in the ExQuality project dependencies
       assert result.gettext == false
@@ -109,6 +111,7 @@ defmodule ExQuality.ToolsTest do
         :credo,
         :dialyzer,
         :doctor,
+        :docs,
         :gettext,
         :native_coverage,
         :sobelow

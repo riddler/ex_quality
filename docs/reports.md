@@ -68,7 +68,7 @@ checking `scope == "all"` never has to reason about fallbacks.
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `Format`, `Compile`, `Credo`, `Dialyzer`, `Dependencies`, `Doctor`, `Gettext`, `Sobelow`, `Tests`, or a custom stage's own name |
+| `name` | string | `Format`, `Compile`, `Credo`, `Dialyzer`, `Dependencies`, `Doctor`, `Docs`, `Gettext`, `Sobelow`, `Tests`, or a custom stage's own name |
 | `status` | `"ok"` \| `"error"` \| `"skipped"` | |
 | `summary` | string | the same one-line summary the console prints; for a skipped stage, the reason |
 | `skip_kind` | `"run"` \| `"project"` \| null | which kind of skip this is; `null` unless the stage was skipped |

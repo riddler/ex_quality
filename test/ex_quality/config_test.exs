@@ -54,6 +54,39 @@ defmodule ExQuality.ConfigTest do
       assert Config.skip_reason(config, :sobelow) == "--skip-sobelow"
     end
 
+    test "skip_docs CLI option sets docs enabled to false with the switch as the reason" do
+      config = Config.load(skip_docs: true)
+
+      assert config[:docs][:enabled] == false
+      assert Config.skip_reason(config, :docs) == "--skip-docs"
+    end
+
+    test "docs is off by default, with an opt-in reason rather than a missing tool" do
+      config = Config.load()
+
+      refute Config.stage_enabled?(config, :docs)
+
+      assert Config.skip(config, :docs) ==
+               {"opt-in; set docs: [enabled: :auto] in .quality.exs", :project}
+    end
+
+    test "docs enabled: :auto follows detection" do
+      # ex_doc is in this project's deps, so :auto resolves to available.
+      config = Config.load() |> Keyword.update!(:docs, &Keyword.put(&1, :enabled, :auto))
+
+      assert Config.stage_enabled?(config, :docs)
+      assert Config.skip(config, :docs) == nil
+    end
+
+    test "docs enabled: :auto without ex_doc names the missing tool, not the opt-in" do
+      config =
+        Config.load()
+        |> Keyword.update!(:docs, &Keyword.merge(&1, enabled: :auto, available: false))
+
+      refute Config.stage_enabled?(config, :docs)
+      assert Config.skip(config, :docs) == {":ex_doc not installed", :project}
+    end
+
     test "skip_dependencies CLI option sets dependencies enabled to false" do
       config = Config.load(skip_dependencies: true)
 
