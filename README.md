@@ -110,7 +110,8 @@ See [Configuration](https://hexdocs.pm/ex_quality/configuration.html#test-scope)
 ## Stages
 
 A stage is enabled when the project depends on the tool behind it. There is
-nothing to switch on.
+nothing to switch on - except Docs, which is opt-in because nearly every
+published package has `:ex_doc` and detection would move existing gates.
 
 | Stage | Runs | Enabled when |
 |---|---|---|
@@ -120,6 +121,7 @@ nothing to switch on.
 | Dialyzer | `mix dialyzer --format short --format dialyxir` | `:dialyxir` |
 | Dependencies | `mix deps.unlock --check-unused`, `mix deps.audit --format json` | always; audit needs `:mix_audit` |
 | Doctor | `mix doctor` | `:doctor` |
+| Docs | `mix docs`, failing on any ExDoc warning | opt-in: `docs: [enabled: :auto]` in `.quality.exs` |
 | Gettext | reads the `.po` files | `:gettext` |
 | Sobelow | `mix sobelow` | `:sobelow` |
 | Tests | `mix test` | always |

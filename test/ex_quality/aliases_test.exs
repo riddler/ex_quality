@@ -15,6 +15,7 @@ defmodule ExQuality.AliasesTest do
       [
         app: :aliased,
         aliases: [
+          docs: ["docs", "cmd cp -r doc/ priv/static/docs"],
           sobelow: ["cmd --app web mix sobelow --config"],
           "test.coverage": ["test --cover --export-coverage default", "test.coverage"],
           test: ["ecto.create --quiet", "ecto.migrate", "test"]
@@ -78,6 +79,17 @@ defmodule ExQuality.AliasesTest do
 
         assert result.status == :error
         assert result.summary == "mix sobelow is aliased in mix.exs"
+      end)
+    end
+
+    test "Docs says so instead of counting warnings from a command it did not issue" do
+      with_aliases(fn ->
+        System |> reject(:cmd, 3)
+
+        result = Stages.Docs.run([])
+
+        assert result.status == :error
+        assert result.summary == "mix docs is aliased in mix.exs"
       end)
     end
 

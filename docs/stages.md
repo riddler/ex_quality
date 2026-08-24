@@ -170,6 +170,41 @@ project's `.doctor.exs`.
 
 `doctor: [summary_only: true]` prints only the summary.
 
+## Docs
+
+Builds the documentation with `mix docs` and fails on any ExDoc warning - a
+reference to a function that does not exist, a link that resolves nowhere, an
+undefined anchor. `mix docs` exits 0 despite them on most versions, so
+warnings that fail no build accumulate; this stage is the ratchet that keeps a
+project at zero once it gets there.
+
+```
+✓ Docs: No warnings (2.1s)
+✗ Docs: 3 warnings (1.9s)
+○ Docs: skipped (opt-in; set docs: [enabled: :auto] in .quality.exs)
+```
+
+Each warning becomes a finding at the `file:line` ExDoc reports; a warning
+without a location falls back to the tool's full output, so nothing is hidden
+behind a parse.
+
+**This stage is opt-in**, unlike the other tool-backed stages. Nearly every
+published package depends on `:ex_doc` to build its docs, so enabling on
+detection would turn currently-green gates red on upgrade. Enable it in
+`.quality.exs`:
+
+```elixir
+docs: [enabled: :auto]   # on when :ex_doc is installed (recommended)
+docs: [enabled: true]    # forced; errors if :ex_doc is missing
+```
+
+With `enabled: :auto` a project without `:ex_doc` reports the stage as skipped
+(`:ex_doc not installed`), the way Doctor and Sobelow do.
+
+The build runs with one formatter (`html` - the epub build repeats its
+warnings) into a temporary directory that is deleted afterwards, so the
+project's own `doc/` output is untouched and the repository stays clean.
+
 ## Gettext
 
 Reads the project's `.po` files for untranslated and fuzzy entries, under every
@@ -286,9 +321,9 @@ somebody can act on into one they cannot:
 
 ## Aliased tasks
 
-ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix format`,
-`mix sobelow`, `mix deps.unlock` and `mix test.coverage`, and reads what they
-print. Mix resolves aliases before tasks, so a project that defines an alias
+ExQuality shells out to the real `mix credo`, `mix dialyzer`, `mix docs`,
+`mix format`, `mix sobelow`, `mix deps.unlock` and `mix test.coverage`, and
+reads what they print. Mix resolves aliases before tasks, so a project that defines an alias
 with one of those names silently changes what the stage measures.
 
 A stage checks before shelling out, and refuses rather than reporting a number

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A Docs stage: builds the documentation with `mix docs` and fails on any ExDoc warning.** ExDoc warns about real defects a reader will hit - a reference to a function that does not exist, a link that resolves nowhere, an undefined anchor - and `mix docs` exits 0 anyway on most versions, so warnings that fail no build accumulate. The stage is the ratchet: a project that reaches zero warnings stays there. Each warning becomes a finding at the `file:line` ExDoc reports; a warning without a location falls back to the tool's full output, so nothing hides behind a parse. The build runs one formatter (`html`) into a temporary directory that is deleted afterwards, so the repository stays clean. **Opt-in, unlike the other tool-backed stages**: nearly every published package depends on `:ex_doc` to build its docs, so enabling on detection would turn currently-green gates red on upgrade, and nobody's gate changes on upgrade. Enable with `docs: [enabled: :auto]` in `.quality.exs` (on when `:ex_doc` is installed; skipped as `:ex_doc not installed` otherwise), or `enabled: true` to force. `--skip-docs` skips it for a run, and an aliased `mix docs` is refused rather than measured, like every other shelled-out task
+
 ## [0.14.1] - 2026-08-24
 
 ### Changed

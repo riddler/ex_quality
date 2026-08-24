@@ -12,8 +12,9 @@ defmodule ExQuality.Aliases do
   a report that was never written, or a suite run twice and counted twice.
 
   The task names ExQuality shells out to are exactly the ones projects most
-  like to alias - `credo`, `dialyzer`, `format`, `sobelow`, `deps.unlock`,
-  `test.coverage` - so a stage whose parsing depends on its exact invocation
+  like to alias - `credo`, `dialyzer`, `docs`, `format`, `sobelow`,
+  `deps.unlock`, `test.coverage` - so a stage whose parsing depends on its
+  exact invocation
   asks here first, and refuses to run rather than reporting a number about a
   command it did not issue.
 

@@ -24,6 +24,7 @@ mix quality --quick               # skip dialyzer and coverage enforcement
 mix quality --skip-credo          # skip static analysis
 mix quality --skip-dialyzer       # skip type checking
 mix quality --skip-doctor         # skip documentation coverage
+mix quality --skip-docs           # skip the ExDoc warnings check
 mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
@@ -98,6 +99,14 @@ A keyword list at the project root. Every key is optional.
     summary_only: false
   ],
 
+  docs: [
+    # Builds the docs and fails on any ExDoc warning. Opt-in, unlike the other
+    # tool-backed stages: nearly every published package has :ex_doc, so
+    # enabling on detection would move existing gates. :auto runs it when
+    # :ex_doc is installed; true forces. See docs/stages.md.
+    enabled: false
+  ],
+
   gettext: [
     enabled: :auto,
     # The locale the source is written in, whose .po files are not checked.
@@ -149,6 +158,10 @@ Every stage takes one of three values:
 | `:auto` | run when the tool is installed (the default) |
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
+
+The Docs stage is the one exception to the default: it ships `enabled: false`,
+and `docs: [enabled: :auto]` is how a project opts in. See
+[stages.md](stages.md#docs).
 
 ## Test scope
 
