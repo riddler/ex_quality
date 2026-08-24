@@ -17,8 +17,8 @@ defmodule Mix.Tasks.Quality.Plt do
 
   In a container image or a CI job, run it in its own step, after
   `mix deps.get` and before any check, and cache `_build` and `~/.mix`
-  (dialyxir keeps the core PLTs in `Mix.Utils.mix_home/0` and the project's own
-  under `_build`). The step is slow once and instant afterwards.
+  (dialyxir keeps the core PLTs in the Mix home directory and the project's
+  own under `_build`). The step is slow once and instant afterwards.
 
   Output is not summarised: unlike a check, the whole point of this task is the
   progress, so dialyxir's own output is passed through as it arrives.

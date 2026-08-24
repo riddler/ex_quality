@@ -39,7 +39,7 @@ defmodule ExQuality.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:doctor, "~> 0.23", only: :dev},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:jason, "~> 1.4"},
       {:mimic, "~> 1.7", only: :test},
@@ -72,6 +72,8 @@ defmodule ExQuality.MixProject do
   defp docs do
     [
       main: "readme",
+      source_ref: "v#{@version}",
+      canonical: "https://hexdocs.pm/ex_quality",
       logo: "assets/ex_quality.svg",
       favicon: "assets/favicon.png",
       assets: %{"assets" => "assets"},

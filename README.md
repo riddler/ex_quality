@@ -2,6 +2,13 @@
   <img src="assets/ex_quality.svg" alt="" width="128" height="128">
 </p>
 
+<p align="center">
+  <a href="https://hex.pm/packages/ex_quality"><img src="https://img.shields.io/hexpm/v/ex_quality.svg" alt="Hex version"></a>
+  <a href="https://hex.pm/packages/ex_quality"><img src="https://img.shields.io/hexpm/dt/ex_quality.svg" alt="Hex downloads"></a>
+  <a href="https://hexdocs.pm/ex_quality/"><img src="https://img.shields.io/badge/hex-docs-lightgreen.svg" alt="Hex docs"></a>
+  <a href="https://hex.pm/packages/ex_quality"><img src="https://img.shields.io/hexpm/l/ex_quality.svg" alt="License"></a>
+</p>
+
 # ExQuality
 
 Runs an Elixir project's quality tools in parallel and reports the run as one
