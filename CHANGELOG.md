@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-08-24
+
 ### Changed
 
 - Docs metadata brought up to the hexdocs standard: `source_ref` and `canonical` in the ExDoc config, hex version/downloads/docs/license badges in the README, and ex_doc bumped to `~> 0.40`. `mix docs` builds with zero warnings
