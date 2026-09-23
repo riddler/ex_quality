@@ -1,0 +1,91 @@
+{
+  "wurk": 1,
+
+  "beads": {
+    "prefix": "eq",
+    "sync": "dolthub",
+    "topology": "beads",
+    "areas": {
+      "labels": [
+        "area:stages",
+        "area:config",
+        "area:report",
+        "area:cli",
+        "area:init",
+        "area:docs",
+        "area:build"
+      ],
+      "lands_alone": ["area:build"],
+      "always_batchable": ["upstream"]
+    }
+  },
+
+  "forge": {
+    "kind": "github",
+    "labels": {}
+  },
+
+  "gate": {
+    "full": ["mix", "quality"],
+    "loop": ["mix", "quality", "--quick"],
+    "report": ["mix", "quality", "--report", "-"],
+    "attest": ["mix", "quality.verify"],
+    "build_paths": ["lib/", "test/", "fixtures/", "mix.exs", "mix.lock", ".formatter.exs"],
+    "also_gated_paths": [],
+    "moving_files": ["coveralls.json", ".formatter.exs"],
+    "sabotage": {
+      "test_roots": ["test/"],
+      "test_pattern": "\\btest\\s+\"",
+      "exempt_prefixes": []
+    },
+    "project_level_skips": [
+      "^opt-in; set docs: \\[enabled: :auto\\] in \\.quality\\.exs$"
+    ],
+    "not_applicable_skips": [
+      "^:gettext not installed$",
+      "^:sobelow not installed$"
+    ]
+  },
+
+  "parallelism": {
+    "model": "worktree-per-issue",
+    "worktrees_dir": "../ex_quality-worktrees",
+    "warm_clone": ["deps", "_build"],
+    "warm_globs": ["_build/dev/dialyxir_erlang-*_elixir-*_deps-dev.plt*"],
+    "warm": [["mix", "deps.get"]],
+    "repair_when": "mix.lock",
+    "repair": [["mix", "deps.get"]],
+    "post_branch": []
+  },
+
+  "tmux": {
+    "session": "ex_quality",
+    "model": "opus"
+  },
+
+  "artifacts": {
+    "plans": "notes/plans",
+    "research": "notes/research",
+    "filename": "YYMMDD-[id-]kebab"
+  },
+
+  "commits": {
+    "style": "s-form",
+    "subject_under": 72,
+    "body_line_max": 72,
+    "total_lines_max": 40,
+    "trailer": {
+      "key": "Refs"
+    }
+  },
+
+  "changelog": {
+    "mode": "keep-a-changelog"
+  },
+
+  "release": {
+    "kind": "hex",
+    "version_file": "mix.exs",
+    "readme_pin": true
+  }
+}
