@@ -225,5 +225,7 @@ The rules that do not wait to be looked up:
   lead with a bold one-sentence statement of the change, then say why, and
   carry no trailing period. `.claude/wurk/release.md` is the release recipe.
 - Commit messages: simple present tense ("Adds ...", "Fixes ..."), body
-  wrapped at ~72 chars explaining why. Requests are squash-merged, and the
-  merge appends `(#NN)` to the subject. No AI attribution trailers.
+  wrapped at ~72 chars explaining why. Requests are rebase-merged (the
+  repository allows neither squash nor merge commits), so each commit lands
+  on main with its message unchanged and no `(#NN)` on its subject. No AI
+  attribution trailers.
