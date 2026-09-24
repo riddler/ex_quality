@@ -132,6 +132,7 @@ underlying tool to get detail that is already on screen.
 | Dependencies | an unused dep, or an advisory with the version that fixes it | `mix deps.unlock <pkg>` for unused; upgrading to the patched version for an advisory |
 | Doctor | documentation coverage below the project's threshold | writing the missing `@moduledoc`/`@doc` |
 | Docs | an ExDoc warning - a reference to a function that does not exist, a link or anchor that resolves nowhere | fixing the reference at `file:line`; do not delete the doc to silence it |
+| Doc links | a relative link HexDocs or hex.pm would break - a target that is not an extra, not in the package, or rewritten to another extra - or two extras sharing a basename, each named by its `check` | linking to a published extra, adding the file to `extras` or `package: [files: ...]`, or linking an unpublished file by absolute URL; do not drop the link to silence it |
 | Gettext | missing or fuzzy translations | translating them, or resolving the fuzzy entries |
 | any stage | `mix <task> is aliased in mix.exs` | renaming the alias, see below |
 | a custom stage | whatever the project's own check reports | fixing it at `file:line`; the check is the project's, so ask before changing what it enforces |

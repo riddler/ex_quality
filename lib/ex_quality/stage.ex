@@ -88,6 +88,7 @@ defmodule ExQuality.Stage do
           optional(:fuzzy_translations) => non_neg_integer(),
           optional(:file_count) => non_neg_integer(),
           optional(:finding_count) => non_neg_integer(),
+          optional(:link_count) => non_neg_integer(),
           optional(:blocking_count) => non_neg_integer(),
           optional(:informational_count) => non_neg_integer(),
           optional(:blocking_by_confidence) => [{String.t(), non_neg_integer()}],
