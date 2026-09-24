@@ -218,6 +218,33 @@ defmodule Mix.Tasks.QualityTest do
       refute captured =~ "✓ Credo"
     end
 
+    test "--skip-doc-links is a switch, and the skip names it with dashes" do
+      ExQuality.Tools
+      |> stub(:detect, fn ->
+        %{
+          credo: false,
+          dialyzer: false,
+          doctor: false,
+          docs: true,
+          gettext: false,
+          coverage: false,
+          audit: false,
+          sobelow: false
+        }
+      end)
+      |> stub(:available?, fn tool -> tool == :docs end)
+
+      System
+      |> stub(:cmd, fn
+        "mix", ["test" | _], _opts -> {"1 tests, 0 failures\n", 0}
+        _cmd, _args, _opts -> {"", 0}
+      end)
+
+      captured = capture_io(fn -> Quality.run(["--skip-doc-links"]) end)
+
+      assert captured =~ "○ Doc links: skipped (--skip-doc-links)"
+    end
+
     test "attributes a dialyzer skip to quick mode" do
       ExQuality.Tools
       |> stub(:detect, fn ->
@@ -489,6 +516,7 @@ defmodule Mix.Tasks.QualityTest do
                "Dialyzer",
                "Doctor",
                "Docs",
+               "Doc links",
                "Gettext",
                "Sobelow",
                "Credo",

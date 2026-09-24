@@ -205,6 +205,60 @@ The build runs with one formatter (`html` - the epub build repeats its
 warnings) into a temporary directory that is deleted afterwards, so the
 project's own `doc/` output is untouched and the repository stays clean.
 
+## Doc links
+
+Checks the relative links in the published Markdown against where they are
+published. ExDoc says nothing about most of the cases below, so the Docs stage
+cannot catch them:
+
+- ExDoc rewrites a relative `.md` link to its `.html` page only when the
+  target is itself one of the `extras`, and it looks the target up by basename
+  alone. Every other relative link stays a raw `href`: it works on GitHub and
+  answers 404 on HexDocs. For a Markdown, `.txt` or extension-less target
+  ExDoc warns that the file "does not exist", even when it is on disk; for any
+  other target, such as `mix.exs` or a source file, it says nothing. A link
+  whose basename matches some other extra is rewritten to *that* extra
+  without a word - a link to `docs/adr/README.md` lands on the package's
+  front page.
+- The hex.pm package page renders the README from the package tarball, so a
+  relative link or image in the README answers 404 there unless the file ships.
+
+```
+✓ Doc links: 42 links checked (0.1s)
+✗ Doc links: 3 problems (0.1s)
+○ Doc links: skipped (opt-in; set doc_links: [enabled: :auto] in .quality.exs)
+```
+
+It fails on four rules, each a finding at the `file:line` of the link (the
+finding's `check` names the rule):
+
+| Rule | Fails when |
+|---|---|
+| `readme_not_packaged` | a relative link or image in `README.md` targets a file `package: [files: ...]` does not cover. With no `files:`, Hex's default list applies (`lib`, `priv`, `.formatter.exs`, `mix.exs`, `README*`, `LICENSE*` and `CHANGELOG*` with their lowercase forms, `src`, `c_src`, `Makefile*`) |
+| `not_an_extra` | a relative link in a Markdown extra targets a file that is not itself an extra. A link into a directory `assets:` copies is fine |
+| `duplicate_extra` | two extras share a basename and the second has no `filename:`; the finding is at the second one's line in `mix.exs` |
+| `rewritten_to_other_extra` | ExDoc would rewrite a relative link to a different extra than the file it names: the basenames match, and ExDoc takes the last extra declared with that basename |
+
+`filename:` gives the second extra its own page, but ExDoc still resolves a
+link by the source file's basename, so a link to either of two same-named
+extras lands on the last one; the fourth rule reports that link.
+
+It reads the project's own config, not built output: `extras` from the `docs`
+config (a keyword list, or a zero-arity function returning one) and `files`
+from the `package` config. Absolute URLs, `mailto:` links, ExDoc's own `e:`
+and backticked forms, anchors and absolute paths are ignored, and an anchor or
+query on a relative link is stripped before the check. Links in code spans and
+fenced code blocks are not links. Links in moduledocs and function docs are the
+Docs stage's: ExDoc warns on those. It builds nothing and runs no tool.
+
+**This stage is opt-in**, like Docs and for the same reason. Enable it in
+`.quality.exs`:
+
+```elixir
+doc_links: [enabled: :auto]   # on when :ex_doc is installed (recommended)
+doc_links: [enabled: true]    # forced, with or without :ex_doc
+```
+
 ## Gettext
 
 Reads the project's `.po` files for untranslated and fuzzy entries, under every

@@ -25,6 +25,7 @@ mix quality --skip-credo          # skip static analysis
 mix quality --skip-dialyzer       # skip type checking
 mix quality --skip-doctor         # skip documentation coverage
 mix quality --skip-docs           # skip the ExDoc warnings check
+mix quality --skip-doc-links      # skip the relative link rules
 mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
@@ -107,6 +108,13 @@ A keyword list at the project root. Every key is optional.
     enabled: false
   ],
 
+  doc_links: [
+    # Checks the relative links in the README and the docs extras against
+    # where they are published. Opt-in, like docs and for the same reason.
+    # :auto runs it when :ex_doc is installed; true forces. See docs/stages.md.
+    enabled: false
+  ],
+
   gettext: [
     enabled: :auto,
     # The locale the source is written in, whose .po files are not checked.
@@ -159,9 +167,10 @@ Every stage takes one of three values:
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
 
-The Docs stage is the one exception to the default: it ships `enabled: false`,
-and `docs: [enabled: :auto]` is how a project opts in. See
-[stages.md](stages.md#docs).
+The Docs and Doc links stages are the exceptions to the default: they ship
+`enabled: false`, and `docs: [enabled: :auto]` and
+`doc_links: [enabled: :auto]` are how a project opts in. See
+[stages.md](stages.md#docs) and [stages.md](stages.md#doc-links).
 
 ## Test scope
 

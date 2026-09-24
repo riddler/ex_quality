@@ -297,6 +297,17 @@ defmodule Mix.Tasks.Quality.Init do
       #   summary_only: false
       # ],
 
+      # ExDoc warnings (opt-in: off unless enabled here)
+      # docs: [
+      #   enabled: :auto  # :auto | true | false (default)
+      # ],
+
+      # Relative links in the README and the docs extras (opt-in: off
+      # unless enabled here)
+      # doc_links: [
+      #   enabled: :auto  # :auto | true | false (default)
+      # ],
+
       # Gettext translation completeness
       # gettext: [
       #   enabled: :auto  # :auto | true | false

@@ -34,6 +34,15 @@ During integration tests:
 - **umbrella** - Two-app umbrella whose root declares no quality tools; credo is declared by `apps/core` only, and only `apps/core` has an issue
 - **native_coverage** - Project with no excoveralls and a `test_coverage: [summary: [threshold: 90]]` setting, whose tests cover one of four functions
 
+### Read by the unit suite
+
+- **doc_links/** - projects with no code, read in place by
+  `test/ex_quality/stages/doc_links_test.exs` through `Mix.Project.in_project/3`
+  rather than copied and run: `clean` keeps every link rule, `broken` breaks the
+  README-package, not-an-extra and rewritten-link rules, `duplicates` shares a
+  basename between two extras, `hex_default_files` names no `package: [files:]`,
+  and `function_docs` declares its docs as a zero-arity function
+
 ## Running Manually
 
 You can test any fixture manually:

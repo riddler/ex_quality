@@ -64,6 +64,9 @@ defmodule ExQuality.Config do
     true (forced). Off by default, unlike the other tool-backed stages, so a
     gate does not turn red on upgrade just because the project publishes docs.
     See `ExQuality.Stages.Docs`
+  - `doc_links.enabled` - false (default) | :auto (on when `:ex_doc` is
+    installed) | true (forced). Off by default like `docs`, for the same
+    reason. See `ExQuality.Stages.DocLinks`
   - `gettext.source_locale` - The locale the source is written in, whose `.po`
     files are not checked (default: `"en"`)
   - `gettext.exclude` - Basenames to skip (default: `["errors.po"]`)
@@ -145,6 +148,12 @@ defmodule ExQuality.Config do
       # detection; `enabled: true` forces. The marker names the default as the
       # source of the skip, so the reason can say "opt-in" rather than lying
       # about the tool being missing.
+      enabled: false,
+      disabled_by: :default
+    ],
+    doc_links: [
+      # Off by default for the same reason as docs: a project that publishes
+      # docs would find its gate red on upgrade. Same opt-in, same marker.
       enabled: false,
       disabled_by: :default
     ],
@@ -271,6 +280,7 @@ defmodule ExQuality.Config do
     :dialyzer,
     :doctor,
     :docs,
+    :doc_links,
     :gettext,
     :sobelow,
     :dependencies
@@ -433,7 +443,7 @@ defmodule ExQuality.Config do
           {switch, :run}
 
         :cli ->
-          {"--skip-#{stage}", :run}
+          {"--skip-#{stage |> to_string() |> String.replace("_", "-")}", :run}
 
         :config ->
           {"disabled in .quality.exs", :project}
@@ -458,6 +468,9 @@ defmodule ExQuality.Config do
     end
   end
 
+  # The doc links stage runs nothing, but it is detected from :ex_doc like docs.
+  defp unavailable_reason(:doc_links), do: unavailable_reason(:docs)
+
   defp unavailable_reason(stage) do
     case ExQuality.Tools.package(stage) do
       nil -> "disabled"
@@ -473,6 +486,8 @@ defmodule ExQuality.Config do
       dialyzer: [available: tools.dialyzer],
       doctor: [available: tools.doctor],
       docs: [available: tools.docs],
+      # Needs no tool to run, but :auto means "when the project builds docs".
+      doc_links: [available: tools.docs],
       gettext: [available: tools.gettext],
       sobelow: [available: tools.sobelow],
       dependencies: [audit_available: tools.audit],
@@ -568,7 +583,16 @@ defmodule ExQuality.Config do
 
   # Every stage has a --skip-<stage> switch, and they all mean the same thing,
   # so they are one table rather than one branch each.
-  @skip_switches [:credo, :dialyzer, :doctor, :docs, :gettext, :sobelow, :dependencies]
+  @skip_switches [
+    :credo,
+    :dialyzer,
+    :doctor,
+    :docs,
+    :doc_links,
+    :gettext,
+    :sobelow,
+    :dependencies
+  ]
 
   defp cli_to_config(opts) do
     config =

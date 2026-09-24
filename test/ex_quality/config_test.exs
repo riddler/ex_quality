@@ -87,6 +87,39 @@ defmodule ExQuality.ConfigTest do
       assert Config.skip(config, :docs) == {":ex_doc not installed", :project}
     end
 
+    test "skip_doc_links CLI option names the dashed switch as the reason" do
+      config = Config.load(skip_doc_links: true)
+
+      assert config[:doc_links][:enabled] == false
+      assert Config.skip(config, :doc_links) == {"--skip-doc-links", :run}
+    end
+
+    test "doc_links is off by default, with the same opt-in reason as docs" do
+      config = Config.load()
+
+      assert config[:doc_links][:disabled_by] == :default
+      refute Config.stage_enabled?(config, :doc_links)
+
+      assert Config.skip(config, :doc_links) ==
+               {"opt-in; set doc_links: [enabled: :auto] in .quality.exs", :project}
+    end
+
+    test "doc_links enabled: :auto follows ex_doc detection" do
+      config = Config.load() |> Keyword.update!(:doc_links, &Keyword.put(&1, :enabled, :auto))
+
+      assert Config.stage_enabled?(config, :doc_links)
+      assert Config.skip(config, :doc_links) == nil
+    end
+
+    test "doc_links enabled: :auto without ex_doc names ex_doc as the missing tool" do
+      config =
+        Config.load()
+        |> Keyword.update!(:doc_links, &Keyword.merge(&1, enabled: :auto, available: false))
+
+      refute Config.stage_enabled?(config, :doc_links)
+      assert Config.skip(config, :doc_links) == {":ex_doc not installed", :project}
+    end
+
     test "skip_dependencies CLI option sets dependencies enabled to false" do
       config = Config.load(skip_dependencies: true)
 
