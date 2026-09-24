@@ -174,9 +174,9 @@ project's `.doctor.exs`.
 
 Builds the documentation with `mix docs` and fails on any ExDoc warning - a
 reference to a function that does not exist, a link that resolves nowhere, an
-undefined anchor. `mix docs` exits 0 despite them on most versions, so
-warnings that fail no build accumulate; this stage is the ratchet that keeps a
-project at zero once it gets there.
+undefined anchor. A plain `mix docs` exits 0 despite them, so warnings that
+fail no build accumulate; this stage is the ratchet that keeps a project at
+zero once it gets there.
 
 ```
 ✓ Docs: No warnings (2.1s)
@@ -184,9 +184,17 @@ project at zero once it gets there.
 ○ Docs: skipped (opt-in; set docs: [enabled: :auto] in .quality.exs)
 ```
 
-Each warning becomes a finding at the `file:line` ExDoc reports; a warning
-without a location falls back to the tool's full output, so nothing is hidden
-behind a parse.
+Each warning becomes a finding at the `file:line` ExDoc reports, in either
+shape ExDoc prints it: the Elixir 1.18 diagnostic, an indented `warning:` line
+whose location closes the block on a `└─ file:line:` line, or the older form
+with the `warning:` line at the start of the line. A warning without a
+location falls back to the tool's full output, so nothing is hidden behind a
+parse.
+
+The build passes `--warnings-as-errors`, so on ExDoc 0.36 and later a warning
+printed in a shape the stage does not read still fails the stage, as
+`ExDoc reported warnings (see output)`, rather than passing. Earlier ExDoc
+versions accept the flag and ignore it.
 
 **This stage is opt-in**, unlike the other tool-backed stages. Nearly every
 published package depends on `:ex_doc` to build its docs, so enabling on

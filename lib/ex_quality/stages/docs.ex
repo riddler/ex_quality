@@ -4,9 +4,9 @@ defmodule ExQuality.Stages.Docs do
 
   ExDoc warns about real defects a reader will hit - a reference to a function
   that does not exist, a moduledoc link that resolves nowhere, an undefined
-  anchor - and `mix docs` exits 0 anyway on most versions. Warnings that fail
-  no build accumulate, so this stage is the ratchet: a project that reaches
-  zero warnings stays there.
+  anchor - and a plain `mix docs` exits 0 anyway. Warnings that fail no build
+  accumulate, so this stage is the ratchet: a project that reaches zero
+  warnings stays there.
 
       ✓ Docs: No warnings (2.1s)
       ✗ Docs: 3 warnings (1.9s)
@@ -16,8 +16,12 @@ defmodule ExQuality.Stages.Docs do
       lib/my_app/user.ex
         42  [error] documentation references function MyApp.User.fetch/2 but it is undefined or private (ex_doc)
 
-  A warning ExDoc reports without a location falls back to the tool's output
-  verbatim, so a warning is never hidden behind a parse.
+  Both shapes ExDoc prints a warning in are read: the Elixir 1.18 diagnostic,
+  an indented `warning:` line whose location closes the block on a
+  `└─ file:line:` line, and the older form, a `warning:` line at the start of
+  the line followed by an indented `file:line:` line. A warning ExDoc reports
+  without a location falls back to the tool's output verbatim, so a warning is
+  never hidden behind a parse.
 
   ## Opt-in
 
@@ -35,11 +39,17 @@ defmodule ExQuality.Stages.Docs do
 
   ## What it builds
 
-  `mix docs --formatter html --output <tmp dir>`: one formatter, because the
-  epub build repeats the html build's warnings, and a temporary output
-  directory that is deleted after the run, because a checker that leaves a
-  `doc/` tree behind has written to the repository. The project's own
-  `mix docs` output is untouched.
+  `mix docs --formatter html --output <tmp dir> --warnings-as-errors`: one
+  formatter, because the epub build repeats the html build's warnings, and a
+  temporary output directory that is deleted after the run, because a checker
+  that leaves a `doc/` tree behind has written to the repository. The
+  project's own `mix docs` output is untouched.
+
+  `--warnings-as-errors` makes ExDoc 0.36 and later exit non-zero when it
+  warned, which backs the parse: a warning printed in a shape the stage does
+  not read still fails the stage, as `ExDoc reported warnings (see output)`,
+  instead of passing as `No warnings`. Earlier ExDoc versions accept the flag
+  and ignore it, so there the parse alone decides.
   """
 
   alias ExQuality.Aliases
@@ -68,7 +78,7 @@ defmodule ExQuality.Stages.Docs do
     out = out_path()
 
     {output, exit_code} =
-      System.cmd("mix", ["docs", "--formatter", "html", "--output", out],
+      System.cmd("mix", ["docs", "--formatter", "html", "--output", out, "--warnings-as-errors"],
         env: [{"MIX_ENV", "dev"}],
         stderr_to_stdout: true
       )
@@ -103,7 +113,7 @@ defmodule ExQuality.Stages.Docs do
           status: :error,
           output: output,
           stats: %{},
-          summary: "mix docs failed (see output)",
+          summary: failure_summary(output),
           duration_ms: duration_ms
         }
 
@@ -119,8 +129,26 @@ defmodule ExQuality.Stages.Docs do
     end
   end
 
+  # ExDoc exits non-zero under --warnings-as-errors when it warned; if the
+  # parse found none of those warnings, say that rather than "failed".
+  defp failure_summary(output) do
+    if String.contains?(output, "--warnings-as-errors"),
+      do: "ExDoc reported warnings (see output)",
+      else: "mix docs failed (see output)"
+  end
+
   # An ExDoc warning is a `warning:` line followed by indented context lines,
-  # usually ending in a `file:line:` location:
+  # usually carrying a `file:line:` location. Elixir 1.18 prints it as an
+  # indented diagnostic that closes on a `└─` location line:
+  #
+  #          warning: documentation references function "Foo.bar/1" but it is undefined or private
+  #          │
+  #      118 │ See `Foo.bar/1`.
+  #          │ ~~~~~~~~~~~~~~~~
+  #          │
+  #          └─ README.md:118: (file)
+  #
+  # and earlier versions print it unindented, the location on its own line:
   #
   #     warning: documentation references function Foo.bar/1 but it is
   #     undefined or private
@@ -134,7 +162,7 @@ defmodule ExQuality.Stages.Docs do
 
   defp chunk_line(line, block) do
     cond do
-      String.starts_with?(line, "warning:") ->
+      String.match?(line, ~r/^\s*warning:/) ->
         if block == [], do: {:cont, [line]}, else: {:cont, Enum.reverse(block), [line]}
 
       block != [] and String.match?(line, ~r/^\s+\S/) ->
@@ -174,20 +202,28 @@ defmodule ExQuality.Stages.Docs do
             app: Umbrella.app_for_path(file, apps),
             severity: :error,
             check: "ex_doc",
-            message: String.replace_prefix(first, "warning: ", ""),
+            message: first |> String.trim_leading() |> String.replace_prefix("warning: ", ""),
             raw: Enum.join(block, "\n")
           }
         ]
     end
   end
 
+  # A block with a `└─` line is a diagnostic: that line alone is its location,
+  # so an excerpt line can never be read as one. Without it, the older form's
+  # first indented `file:line` is.
   defp location(block) do
-    Enum.find_value(block, fn line ->
-      case Regex.run(~r/^\s+(\S+?):(\d+)/, line) do
-        [_, file, line_number] -> {Finding.relative_path(file), String.to_integer(line_number)}
-        nil -> nil
-      end
-    end)
+    case Enum.filter(block, &String.match?(&1, ~r/^\s*└─/u)) do
+      [] -> Enum.find_value(block, &location_in(&1, ~r/^\s+(\S+?):(\d+)/))
+      closing -> Enum.find_value(closing, &location_in(&1, ~r/^\s*└─\s*(\S+?):(\d+)/u))
+    end
+  end
+
+  defp location_in(line, regex) do
+    case Regex.run(regex, line) do
+      [_, file, line_number] -> {Finding.relative_path(file), String.to_integer(line_number)}
+      nil -> nil
+    end
   end
 
   defp plural(1), do: ""
