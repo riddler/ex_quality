@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-09-24
+
 ### Fixed
 
 - **The Docs stage fails on the warnings ExDoc prints on Elixir 1.18, which it reported as "No warnings".** On Elixir 1.18 ExDoc prints each warning as an indented diagnostic whose location closes the block on a `└─ file:line:` line, and `mix docs` exits 0 over it; the stage counted only lines starting with `warning:`, so a build printing warnings passed. Both shapes are read now, each warning a finding at the `file:line` its location line gives, with the full-output fallback kept for a warning with no location. The build also passes `--warnings-as-errors` as a backstop: on ExDoc 0.36 and later a warning in a shape the stage does not read fails the stage as `ExDoc reported warnings (see output)` rather than passing, and earlier ExDoc versions accept the flag and ignore it. A project with the stage enabled whose docs build warns on Elixir 1.18 goes red on upgrade: those warnings were always meant to fail it
