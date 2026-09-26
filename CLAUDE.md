@@ -56,7 +56,7 @@ irreversible step, and report.
 | merging a campaign PR | a campaign consent the operator adopted verbatim that names automatic merges, with every named condition met (full gate green, firewall scan clean with a positive control, any named review gate passed) | outside such a consent; any named condition unmet; any PR the consent's carve-outs hold for the operator |
 | `bd close <id>` | never for a mirrored bead whose other half is not merged to its own repo's `origin/main`; a mirrored bead whose other half has ALSO landed may be closed by the campaign conductor under a consent naming this exception, both halves together, each verified against its remote; otherwise the operator's call | for a bead whose description carries a `mirrors:` line while its other half is unlanded, campaign consent included |
 | `bd dolt push` | the operator's call | inside a campaign that spans mirrored trackers - the conductor pushes those atomically |
-| a release, a version bump | never, with one named exception: a release-prep request - a version bump and a changelog promotion, no tag - under a campaign consent clause that names it | always for the tag, the publish and the release itself, and always for the prep request too when the consent does not name it |
+| a release prep (a version bump and a changelog promotion) and its tag | a release bead the operator has named (in the campaign plan or their own words); the tag once that prep is merged to `origin/main`, naming its version at the merged commit | on any other bead or on `main`; the tag before the prep is on `origin/main`; always for the publish and the release itself |
 
 This repo has no CI. A consent that names "CI green" as a merge condition
 cannot be met here until a workflow exists; the full local gate is the only
@@ -80,12 +80,12 @@ authority is the operator's and the subagent is only the hands, so it may act.
 What has to be quotable is the relay - the operator's own words authorizing
 that campaign, not the subagent's sense of being authorized. A subagent that
 cannot quote them reports and stops. A relay unlocks nothing the rows above
-forbid outright: closing a mirrored bead, and tagging, publishing or
-cutting a release stay forbidden however the consent arrives. The release-prep
-request in the row above is the one named exception, and it is narrow: a
-version bump and a changelog promotion with no tag, opened and landed only
-under a campaign's own explicit consent clause naming it, with the tag and the
-publish that follow still the operator's.
+forbid outright: closing a mirrored bead, and publishing or cutting a
+release stay forbidden however the consent arrives. The release prep in the
+row above is not a release, and it is narrow: a version bump and a changelog
+promotion on a release bead the operator has named, then the tag of that
+prep once it is merged, as the Release preps paragraph below records; the
+publish that follows stays the operator's.
 
 Merging a campaign PR is a recorded exception: under a campaign consent the
 operator has adopted verbatim that names automatic merges, with every
@@ -93,6 +93,18 @@ condition that consent names met, the conductor's merge executes the
 operator's own authorization - the consent's text is what may be done and
 nothing more. (Adopted here at onboarding with the rest of the satellite
 authority table.)
+
+**Release preps.** The version bump and the tag of a release prep are the
+family norm, not a grant a campaign consent has to name. On a release bead
+the operator has named (in the campaign plan or their own words), the prep -
+the version bump and the changelog promotion - lands through the rows above;
+once it is merged to `origin/main`, the conductor or the session that owns
+the release bead tags that merged commit with the new version and pushes the
+tag. Publishing (`mix hex.publish`, a docs republish included) is the
+operator's one release step, in every campaign, and no consent or relay
+delegates it. Merging the prep follows this file's merge row, and nothing
+else this file reserves for the operator changes. (Recorded 2026-09-25 by
+the operator.)
 
 Widening this section is a decision for the operator to make and record here.
 An agent may draft the change; it does not adopt it.
