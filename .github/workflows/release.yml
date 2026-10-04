@@ -1,0 +1,162 @@
+name: Release
+
+# Publishes this package to Hex when a version tag is pushed, and only when
+# three things hold at the tagged commit: it is on the default branch, the
+# tag names the version mix.exs states there, and the full quality gate is
+# green there. Nothing else triggers it - no branch push, no pull request, no
+# manual dispatch. A failed run publishes nothing and the tag stays where it
+# is. The one manual act is re-running a run whose publish step failed on a
+# registry or network error, from the run's page in the Actions tab.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Read-only. The publish authenticates to Hex with its own key, never with
+# this token.
+permissions:
+  contents: read
+
+# One run per tag, and a run in progress is never cancelled: a publish cut
+# off part way is worse than one that finishes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, gate and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # Full history: the ancestry check below walks it.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The default branch is read from the push event itself, never written
+      # here, so a renamed default branch needs no edit to this file.
+      - name: Fetch the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test -n "$DEFAULT_BRANCH" || { echo "::error::the push event names no default branch" >&2; exit 1; }
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+
+      - name: Check the tagged commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse 'HEAD^{commit}')"
+          if ! git merge-base --is-ancestor "$commit" "origin/${DEFAULT_BRANCH}"; then
+            echo "::error::${GITHUB_REF_NAME} is on ${commit}, which is not on ${DEFAULT_BRANCH}; nothing is published" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} is on ${commit}, which is on ${DEFAULT_BRANCH}"
+
+      - name: Check the tag names the version in mix.exs
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          file_version="$(sed -n 's/^ *@version *"\([^"]*\)".*$/\1/p' mix.exs | head -1)"
+          test -n "$file_version" || { echo "::error::no @version in mix.exs at the tagged commit" >&2; exit 1; }
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::${GITHUB_REF_NAME} names ${tag_version} but mix.exs at the tagged commit says ${file_version}; nothing is published" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} matches @version ${file_version}"
+
+      # A version Hex already shows is reported, never published again. This
+      # also answers a re-run of a run that did publish.
+      - name: Check Hex does not already show this version
+        env:
+          HEX_PACKAGE: ex_quality
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' "https://hex.pm/api/packages/${HEX_PACKAGE}/releases/${version}")"
+          case "$status" in
+            404) echo "${HEX_PACKAGE} ${version} is not on Hex yet" ;;
+            200) echo "::error::${HEX_PACKAGE} ${version} is already on Hex; reported, not published again" >&2; exit 1 ;;
+            *) echo "::error::hex.pm answered ${status} for ${HEX_PACKAGE} ${version}; nothing is published" >&2; exit 1 ;;
+          esac
+
+      # This repository keeps no mise.toml, so the toolchain is pinned here:
+      # the Erlang and Elixir pair the rest of the family pins in its
+      # mise.toml files (statifier-ex's among them), which mix.exs's
+      # `elixir: "~> 1.14"` admits. Move both by hand when the family moves.
+      - name: The toolchain, pinned in this file
+        id: toolchain
+        run: |
+          set -euo pipefail
+          echo "erlang=27.3" >> "$GITHUB_OUTPUT"
+          echo "elixir=1.18.3-otp-27" >> "$GITHUB_OUTPUT"
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ steps.toolchain.outputs.erlang }}
+          elixir-version: ${{ steps.toolchain.outputs.elixir }}
+
+      # _build carries the Dialyzer PLT
+      # (_build/dev/dialyxir_erlang-*_elixir-*_deps-dev.plt), so this cache is
+      # the PLT cache too. The hash key moves whenever mix.lock does; the
+      # restore-keys fallback means a lockfile bump rebuilds the PLT
+      # incrementally from the previous one rather than from scratch.
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ steps.toolchain.outputs.erlang }}-ex${{ steps.toolchain.outputs.elixir }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ steps.toolchain.outputs.erlang }}-ex${{ steps.toolchain.outputs.elixir }}-
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      # The full quality gate, the one an agent must have green before
+      # committing. The command is read out of .claude/wurk.json rather than
+      # written here, so there is one definition with one place to change it.
+      # It is read and executed inside the step rather than interpolated into
+      # `run:`, so a repository file never reaches the shell as expression
+      # text. A red gate stops the job here, before the publish.
+      - name: Full quality gate
+        run: |
+          set -euo pipefail
+          mapfile -t cmd < <(jq -er '.gate.full[]' .claude/wurk.json)
+          test "${#cmd[@]}" -gt 0 || { echo "gate.full is empty" >&2; exit 1; }
+          echo "gate command (.claude/wurk.json gate.full): ${cmd[*]}"
+          "${cmd[@]}"
+
+      # With no .quality.exs the Format stage runs in write mode, so a green
+      # gate can still have rewritten files. What publishes is the tagged
+      # commit as it is, never a tree the gate changed.
+      - name: Check the gate left the tagged tree unchanged
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code --stat; then
+            echo "::error::the gate changed tracked files at ${GITHUB_REF_NAME}; nothing is published" >&2
+            exit 1
+          fi
+
+      # The only step that sees the Hex key: HEX_API_KEY is read by Hex in
+      # place of a logged-in user, and --yes answers the confirmation prompt.
+      # The docs are built and published with the package, as by default.
+      - name: Publish to Hex
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes
+
+      - name: Print the published version's address
+        env:
+          HEX_PACKAGE: ex_quality
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          echo "https://hex.pm/packages/${HEX_PACKAGE}/${version}"
+          echo "https://hexdocs.pm/${HEX_PACKAGE}/${version}"

@@ -100,8 +100,9 @@ the campaign plan or their own words), landing through the rows of
 `CLAUDE.md`'s authority table. Tagging that prep is the family norm, not a
 grant a campaign consent has to name: once the prep is merged to
 `origin/main`, the conductor or the session that owns the release bead tags
-the merged commit `vX.Y.Z` and pushes the tag. Publishing
-(`mix hex.publish`, a docs republish included) is the operator's one release
-step, in every campaign and outside every campaign, and no consent or relay
-delegates it. `CLAUDE.md`'s release-prep row and its Release preps paragraph
-say so.
+the merged commit `vX.Y.Z` and pushes the tag. An agent or a session never
+runs `mix hex.publish` (a docs republish included): the release workflow
+(`.github/workflows/release.yml`) publishes on that tag push, and a failed
+workflow is re-run from its Actions page, never worked round by a local
+publish. `CLAUDE.md`'s release-prep row and its Release preps paragraph say
+so.
