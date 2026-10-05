@@ -84,6 +84,7 @@ defmodule ExQuality.MixProject do
         "docs/reports.md",
         "docs/umbrella.md",
         "docs/ci.md",
+        "docs/explanation/why-the-gate-is-one-command.md",
         "usage-rules.md",
         "CHANGELOG.md"
       ],
@@ -95,7 +96,8 @@ defmodule ExQuality.MixProject do
           "docs/reports.md",
           "docs/umbrella.md",
           "usage-rules.md"
-        ]
+        ],
+        Explanation: ["docs/explanation/why-the-gate-is-one-command.md"]
       ]
     ]
   end

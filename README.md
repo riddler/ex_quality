@@ -96,15 +96,9 @@ truncate the output, and which fixes are never acceptable - lowering a coverage
 threshold, adding a `.sobelow-conf` ignore - because a tool silencing its own
 findings is a regression dressed as a pass.
 
-Two things make an agent loop cheap, and they pull in opposite directions. The
-output properties above are one: a passing run costs a line per stage of context
-instead of several tool reports, and a failing one gives `file:line` targets
-without a second command. The other is that the run has to be quick enough to be
-worth repeating. An aggregate command that always runs the full suite is one an
-agent will either invoke and pay for, or quietly stop invoking - both worse than
-the individual test runs it would have reached for otherwise. `--test-scope
-changed` is the answer to that, and `scope` in the report is how the full gate
-stays distinguishable from it.
+Why one command with many speeds suits an agent loop, and how the full gate stays
+distinguishable from a narrowed one, is in
+[Why the gate is one command](docs/explanation/why-the-gate-is-one-command.md).
 
 ## Documentation
 
@@ -118,6 +112,8 @@ stays distinguishable from it.
   - [Umbrella projects](docs/umbrella.md) - how detection, findings, tests, coverage and Sobelow behave at an umbrella root
   - [Usage rules](usage-rules.md) - the rules a coding agent reads: which command for which situation and which fixes are never acceptable
   - [Changelog](CHANGELOG.md) - what changed in each version, and how to enable each new stage
+- Understand
+  - [Why the gate is one command](docs/explanation/why-the-gate-is-one-command.md) - why the tools sit behind one command with one output shape, the alternatives, and what the choice costs
 
 ## Compatibility
 
