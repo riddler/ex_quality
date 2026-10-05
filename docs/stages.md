@@ -339,6 +339,86 @@ readme: [enabled: :auto, severity: :error]  # fail on any finding
 
 `--skip-readme` skips it for a run.
 
+## Diataxis
+
+Checks that each page under a documentation quadrant reads as the kind of
+page its folder declares: a tutorial teaches, a how-to guide shows the steps
+to a goal, a reference page describes, an explanation gives reasons. It
+counts a fixed list of language cues on each page; it never asks a model.
+
+```
+✓ Diataxis: 12 pages, each reads as its type (0.0s)
+✓ Diataxis: 1 warning: how_to_title at docs/guides/upgrade.md:1 (0.0s)
+✗ Diataxis: 2 problems (0.0s)
+○ Diataxis: skipped (opt-in; set diataxis: [enabled: :auto] in .quality.exs)
+```
+
+The quadrants come from the front matter of `.claude/diataxis.md`, the
+project's documentation manifest. Every `.md` file under one of the four
+paths is read; a page under two paths belongs to the deeper one, and a path
+with no folder yet has no pages. A project without the manifest has nothing
+to read, and the stage reports nothing.
+
+```markdown
+---
+quadrants:
+  tutorials: docs/tutorials
+  how_to: docs/guides
+  reference: docs/reference
+  explanation: docs/explanation
+---
+```
+
+A page's declared type is its folder's quadrant, unless the page's own front
+matter carries a `type:` key (`tutorial`, `how-to`, `reference` or
+`explanation`), which wins.
+
+The type a page reads as comes from cues. Fenced code, inline code and link
+targets are dropped first; then each cue scores for one type:
+
+| Cue | Scores |
+|---|---|
+| a phrase from the type's list, anywhere on the page | 1 each time, for its type |
+| the same phrase in the first paragraph under the H1 | 3, for its type |
+| an H1 starting "How to" | 3, how-to guide |
+| an H1 starting "About" or "Why", or ending "explained" | 3, explanation |
+| "you will" or "you'll" | 1 each time, tutorial |
+| three or more list items that open with an imperative verb ("Run", "Add", "Set", ...), making up at least a third of the page's paragraphs and list items | 2, how-to guide |
+
+The phrase lists open each kind of page: "In this tutorial", "You should now
+see" and "Notice that" for a tutorial; "This guide shows you how to" and "If
+you want" for a how-to guide; "This page lists", "defaults to", "returns" and
+"raises" for reference; "This page explains", "The reason for",
+"historically" and "because" for an explanation. They are a fixed subset of
+the Diataxis skill's language cues, and the stage module holds the full
+list.
+
+A page reads as a type when that type scores at least 3 and more than twice
+any other type. A page whose cues are too few or too mixed is not judged.
+
+| Rule | Reported when |
+|---|---|
+| `type_mismatch` | the page reads as a type other than the one it declares. The finding is at the page's H1 and its message carries every type's score |
+| `how_to_title` | a page declared a how-to guide has an H1 that does not start with "How to" (in any case), or no H1 |
+| `bad_type` | the page's front matter `type:` is not one of the four. The folder's type applies |
+| `bad_manifest` | `.claude/diataxis.md` has front matter that never closes, no front matter, or no `quadrants:` map with a path in it |
+
+**Findings are warnings by default.** A warning is named in the stage's
+summary line and carried in the JSON report, and the stage passes.
+`severity: :error` makes every finding an error and fails the stage on any of
+them.
+
+**This stage is opt-in**, so no gate changes on upgrade. Enable it in
+`.quality.exs`:
+
+```elixir
+diataxis: [enabled: :auto]                    # on when .claude/diataxis.md exists
+diataxis: [enabled: true]                     # forced; reports nothing without the manifest
+diataxis: [enabled: :auto, severity: :error]  # fail on any finding
+```
+
+`--skip-diataxis` skips it for a run.
+
 ## Gettext
 
 Reads the project's `.po` files for untranslated and fuzzy entries, under every

@@ -29,6 +29,7 @@ defmodule Mix.Tasks.Quality do
   - `--skip-docs` - Skip the Docs (ExDoc warnings) stage
   - `--skip-doc-links` - Skip the Doc links (relative link rules) stage
   - `--skip-readme` - Skip the README (introduction shape) stage
+  - `--skip-diataxis` - Skip the Diataxis (page type cues) stage
   - `--skip-gettext` - Skip Gettext translation checks
   - `--skip-sobelow` - Skip Sobelow security analysis
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
@@ -76,7 +77,8 @@ defmodule Mix.Tasks.Quality do
   See `ExQuality.Stages.Docs`. The Doc links stage is opt-in the same way,
   via `doc_links: [enabled: :auto]`; see `ExQuality.Stages.DocLinks`. So is
   the README stage, via `readme: [enabled: :auto]`; see
-  `ExQuality.Stages.Readme`.
+  `ExQuality.Stages.Readme`. So is the Diataxis stage, via
+  `diataxis: [enabled: :auto]`; see `ExQuality.Stages.Diataxis`.
 
   ## Quick Mode
 
@@ -191,6 +193,7 @@ defmodule Mix.Tasks.Quality do
   alias ExQuality.Stages.Credo
   alias ExQuality.Stages.Dependencies
   alias ExQuality.Stages.Dialyzer
+  alias ExQuality.Stages.Diataxis
   alias ExQuality.Stages.DocLinks
   alias ExQuality.Stages.Docs
   alias ExQuality.Stages.Doctor
@@ -209,6 +212,7 @@ defmodule Mix.Tasks.Quality do
     {:docs, Docs, "Docs"},
     {:doc_links, DocLinks, "Doc links"},
     {:readme, Readme, "README"},
+    {:diataxis, Diataxis, "Diataxis"},
     {:gettext, Gettext, "Gettext"},
     {:sobelow, Sobelow, "Sobelow"},
     {:dependencies, Dependencies, "Dependencies"}
@@ -222,6 +226,7 @@ defmodule Mix.Tasks.Quality do
     skip_docs: :boolean,
     skip_doc_links: :boolean,
     skip_readme: :boolean,
+    skip_diataxis: :boolean,
     skip_gettext: :boolean,
     skip_sobelow: :boolean,
     skip_dependencies: :boolean,
@@ -250,6 +255,7 @@ defmodule Mix.Tasks.Quality do
     :credo,
     :doctor,
     :readme,
+    :diataxis,
     :doc_links,
     :docs,
     :custom,

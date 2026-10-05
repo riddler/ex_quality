@@ -315,6 +315,13 @@ defmodule Mix.Tasks.Quality.Init do
       #   severity: :warning  # :warning (default) | :error
       # ],
 
+      # Each page under a quadrant path of .claude/diataxis.md reads as the
+      # type its folder declares (opt-in: off unless enabled here)
+      # diataxis: [
+      #   enabled: :auto,     # :auto | true | false (default)
+      #   severity: :warning  # :warning (default) | :error
+      # ],
+
       # Gettext translation completeness
       # gettext: [
       #   enabled: :auto  # :auto | true | false
