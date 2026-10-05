@@ -157,6 +157,42 @@ defmodule ExQuality.ConfigTest do
       assert Config.skip(config, :readme) == {"no README.md", :project}
     end
 
+    test "skip_diataxis CLI option names the dashed switch as the reason" do
+      config = Config.load(skip_diataxis: true)
+
+      assert config[:diataxis][:enabled] == false
+      assert Config.skip(config, :diataxis) == {"--skip-diataxis", :run}
+    end
+
+    test "diataxis is off by default, warns when enabled, and says how to opt in" do
+      config = Config.load()
+
+      assert config[:diataxis][:disabled_by] == :default
+      assert config[:diataxis][:severity] == :warning
+      refute Config.stage_enabled?(config, :diataxis)
+
+      assert Config.skip(config, :diataxis) ==
+               {"opt-in; set diataxis: [enabled: :auto] in .quality.exs", :project}
+    end
+
+    test "diataxis enabled: :auto with a docs manifest runs" do
+      config =
+        Config.load()
+        |> Keyword.update!(:diataxis, &Keyword.merge(&1, enabled: :auto, available: true))
+
+      assert Config.stage_enabled?(config, :diataxis)
+      assert Config.skip(config, :diataxis) == nil
+    end
+
+    test "diataxis enabled: :auto with no .claude/diataxis.md names the missing file" do
+      config =
+        Config.load()
+        |> Keyword.update!(:diataxis, &Keyword.merge(&1, enabled: :auto, available: false))
+
+      refute Config.stage_enabled?(config, :diataxis)
+      assert Config.skip(config, :diataxis) == {"no .claude/diataxis.md", :project}
+    end
+
     test "skip_dependencies CLI option sets dependencies enabled to false" do
       config = Config.load(skip_dependencies: true)
 

@@ -27,6 +27,7 @@ mix quality --skip-doctor         # skip documentation coverage
 mix quality --skip-docs           # skip the ExDoc warnings check
 mix quality --skip-doc-links      # skip the relative link rules
 mix quality --skip-readme         # skip the README shape check
+mix quality --skip-diataxis       # skip the page type cue check
 mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
@@ -129,7 +130,17 @@ A keyword list at the project root. Every key is optional.
     what_max_lines: 6
   ],
 
-  gettext: [
+diataxis: [
+  # Checks that each page under a quadrant path of .claude/diataxis.md
+  # reads as the type its folder (or its front matter type:) declares,
+  # and that a how-to guide's H1 starts "How to". Opt-in: :auto runs it
+  # when .claude/diataxis.md exists; true forces. See docs/stages.md.
+  enabled: false,
+  # :warning reports each finding and passes; :error fails on any.
+  severity: :warning
+],
+
+gettext: [
     enabled: :auto,
     # The locale the source is written in, whose .po files are not checked.
     source_locale: "en",
@@ -181,11 +192,12 @@ Every stage takes one of three values:
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
 
-The Docs, Doc links and README stages are the exceptions to the default:
-they ship `enabled: false`, and `docs: [enabled: :auto]`,
-`doc_links: [enabled: :auto]` and `readme: [enabled: :auto]` are how a
-project opts in. See [stages.md](stages.md#docs),
-[stages.md](stages.md#doc-links) and [stages.md](stages.md#readme).
+The Docs, Doc links, README and Diataxis stages are the exceptions to the
+default: they ship `enabled: false`, and `docs: [enabled: :auto]`,
+`doc_links: [enabled: :auto]`, `readme: [enabled: :auto]` and
+`diataxis: [enabled: :auto]` are how a project opts in. See
+[stages.md](stages.md#docs), [stages.md](stages.md#doc-links),
+[stages.md](stages.md#readme) and [stages.md](stages.md#diataxis).
 
 ### `severity` (README)
 
@@ -196,6 +208,15 @@ finding becomes an error and fails the stage. Any other value fails the
 stage with a message naming the two it accepts. The line ceiling is not
 set here: it is `readme_max_lines` in the front matter of
 `.claude/diataxis.md`, 250 when that file or key is absent.
+
+### `severity` (Diataxis)
+
+The Diataxis stage takes the same two values with the same meaning:
+`diataxis: [severity: :warning]`, the default, reports each finding and
+passes; `diataxis: [severity: :error]` fails the stage on any finding. Any
+other value fails the stage with a message naming the two it accepts. The
+quadrant paths are not set here: they are the `quadrants:` map in the front
+matter of `.claude/diataxis.md`.
 
 ## Test scope
 

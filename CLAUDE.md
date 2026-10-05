@@ -183,10 +183,10 @@ the gate is only as good as the tests that cover the edit.
   - The Format stage runs in **write** mode: the gate rewrites unformatted
     files rather than failing on them. Check `git status` after a gate run
     and include or discard what it reformatted deliberately.
-  - Docs, Doc links and README are skipped as opt-in, and Gettext and
-    Sobelow are skipped as not installed. `mix quality.verify` names all five
-    as "not checked by this project". `mix docs` currently builds with zero
-    warnings.
+  - Docs, Doc links, README and Diataxis are skipped as opt-in, and Gettext
+    and Sobelow are skipped as not installed. `mix quality.verify` names all
+    six as "not checked by this project". `mix docs` currently builds with
+    zero warnings.
 - `coveralls.json` sets a 70% floor and excludes `test/` and `lib/mix/tasks/`
   from measurement.
 - The integration suite (`test/integration/`, and the `quality.init` tests,

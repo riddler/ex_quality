@@ -110,9 +110,10 @@ See [Configuration](https://hexdocs.pm/ex_quality/configuration.html#test-scope)
 ## Stages
 
 A stage is enabled when the project depends on the tool behind it. There is
-nothing to switch on - except Docs, Doc links and README, which are opt-in
-because nearly every published package has `:ex_doc` and a README, and
-detection would move existing gates.
+nothing to switch on - except Docs, Doc links, README and Diataxis, which are
+opt-in because nearly every published package has `:ex_doc` and a README, a
+docs manifest is how a project starts sorting its pages, and detection would
+move existing gates.
 
 | Stage | Runs | Enabled when |
 |---|---|---|
@@ -125,6 +126,7 @@ detection would move existing gates.
 | Docs | `mix docs`, failing on any ExDoc warning | opt-in: `docs: [enabled: :auto]` in `.quality.exs` |
 | Doc links | reads `mix.exs`, the README and the docs extras; fails on a relative link HexDocs or hex.pm would break | opt-in: `doc_links: [enabled: :auto]` in `.quality.exs` |
 | README | reads `README.md`; warns when it lacks a What, a Why, an Install, one basic-usage snippet or a grouped Documentation section, or runs over its line ceiling | opt-in: `readme: [enabled: :auto]` in `.quality.exs` |
+| Diataxis | reads the quadrant paths in `.claude/diataxis.md`; warns when a page's language cues read as another type than its folder declares, or a how-to guide's H1 does not start with "How to" | opt-in: `diataxis: [enabled: :auto]` in `.quality.exs` |
 | Gettext | reads the `.po` files | `:gettext` |
 | Sobelow | `mix sobelow` | `:sobelow` |
 | Tests | `mix test` | always |
