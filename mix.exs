@@ -88,7 +88,14 @@ defmodule ExQuality.MixProject do
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Guides: Path.wildcard("docs/*.md")
+        "How-to guides": ["docs/ci.md"],
+        Reference: [
+          "docs/configuration.md",
+          "docs/stages.md",
+          "docs/reports.md",
+          "docs/umbrella.md",
+          "usage-rules.md"
+        ]
       ]
     ]
   end
