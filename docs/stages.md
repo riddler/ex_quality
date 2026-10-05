@@ -267,6 +267,78 @@ doc_links: [enabled: :auto]   # on when :ex_doc is installed (recommended)
 doc_links: [enabled: true]    # forced, with or without :ex_doc
 ```
 
+## README
+
+Checks that `README.md` keeps the shape of an introduction and a map: what
+the package is, why it exists, how to install it, one basic-usage snippet,
+and links to the rest grouped by the reader's question. It checks the shape,
+not the prose: headings, paragraphs, code blocks and list indentation.
+
+```
+✓ README: 180 lines, every part present (0.0s)
+✓ README: 2 warnings: no_why at README.md:1, over_ceiling at README.md:251 (0.0s)
+✗ README: 2 problems (0.0s)
+○ README: skipped (opt-in; set readme: [enabled: :auto] in .quality.exs)
+```
+
+Each finding is at a `file:line` in the README, and its `check` names the
+rule:
+
+| Rule | Reported when |
+|---|---|
+| `no_what` | the README has no H1; or no prose paragraph sits under the H1 before the next heading; or that first paragraph runs over `what_max_lines` lines (6 by default). Badge, image, HTML, blockquote, list and table blocks under the H1 are skipped on the way to it |
+| `no_why` | no H2 starts with "Why", "What this is for" or "The problem" |
+| `no_install` | no H2 starts with "Install"; or the first one that does holds no code block with a dependency tuple such as `{:widget, "~> 1.2"}` |
+| `no_basic_usage` | no H2 starts with "Quick start" (or "Quickstart"), "Basic usage", "Usage" or "A first"; or the first one that does holds no code block, or more than one, or a block over forty lines |
+| `ungrouped_documentation` | an H2 starting with "Documentation" holds a link that is not on a nested list item. The links sit under group items, one level in, as in the example below; a link on a top-level item or in a prose line is reported, at the first one, with a count of the rest |
+| `over_ceiling` | the README runs over the line ceiling: 250 lines, or `readme_max_lines` from `.claude/diataxis.md`. The finding is at the first line past the ceiling |
+| `bad_manifest` | `.claude/diataxis.md` exists, and its front matter never closes or its `readme_max_lines` is not a positive integer. The default ceiling applies |
+
+A section runs from its H2 to the next H1 or H2, so its H3s belong to it.
+Headings match on the start of their text, ignoring case, and nothing inside
+fenced code is read as structure. A missing section is reported at the H1.
+
+A grouped Documentation section:
+
+```markdown
+## Documentation
+
+- Learn
+  - [Your first run](docs/tutorials/first-run.md)
+- Look up
+  - [Configuration](docs/configuration.md)
+```
+
+The ceiling can be raised or lowered per project in the front matter of
+`.claude/diataxis.md`, the project's documentation manifest. Only that key is
+read, and a file with no front matter keeps the default:
+
+```markdown
+---
+readme_max_lines: 300
+---
+```
+
+The stage does not check whether a link resolves: that is the Doc links
+stage's check, and enabling both covers a README that is shaped right and
+links right. It builds nothing and runs no tool.
+
+**Findings are warnings by default.** A warning is named in the stage's
+summary line and carried in the JSON report, and the stage passes.
+`severity: :error` makes every finding an error and fails the stage on any of
+them, which is the flip a project makes once its README has the shape.
+
+**This stage is opt-in**, so no gate changes on upgrade. Enable it in
+`.quality.exs`:
+
+```elixir
+readme: [enabled: :auto]                    # on when README.md exists
+readme: [enabled: true]                     # forced; reports a missing README
+readme: [enabled: :auto, severity: :error]  # fail on any finding
+```
+
+`--skip-readme` skips it for a run.
+
 ## Gettext
 
 Reads the project's `.po` files for untranslated and fuzzy entries, under every

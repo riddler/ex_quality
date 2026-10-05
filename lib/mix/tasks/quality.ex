@@ -28,6 +28,7 @@ defmodule Mix.Tasks.Quality do
   - `--skip-doctor` - Skip Doctor documentation checks
   - `--skip-docs` - Skip the Docs (ExDoc warnings) stage
   - `--skip-doc-links` - Skip the Doc links (relative link rules) stage
+  - `--skip-readme` - Skip the README (introduction shape) stage
   - `--skip-gettext` - Skip Gettext translation checks
   - `--skip-sobelow` - Skip Sobelow security analysis
   - `--skip-dependencies` - Skip dependency checks (unused deps and security audit)
@@ -73,7 +74,9 @@ defmodule Mix.Tasks.Quality do
   `docs: [enabled: :auto]` in `.quality.exs`, because nearly every published
   package has `:ex_doc` and enabling on detection would move existing gates.
   See `ExQuality.Stages.Docs`. The Doc links stage is opt-in the same way,
-  via `doc_links: [enabled: :auto]`; see `ExQuality.Stages.DocLinks`.
+  via `doc_links: [enabled: :auto]`; see `ExQuality.Stages.DocLinks`. So is
+  the README stage, via `readme: [enabled: :auto]`; see
+  `ExQuality.Stages.Readme`.
 
   ## Quick Mode
 
@@ -193,6 +196,7 @@ defmodule Mix.Tasks.Quality do
   alias ExQuality.Stages.Doctor
   alias ExQuality.Stages.Format
   alias ExQuality.Stages.Gettext
+  alias ExQuality.Stages.Readme
   alias ExQuality.Stages.Sobelow
   alias ExQuality.Stages.Test
 
@@ -204,6 +208,7 @@ defmodule Mix.Tasks.Quality do
     {:doctor, Doctor, "Doctor"},
     {:docs, Docs, "Docs"},
     {:doc_links, DocLinks, "Doc links"},
+    {:readme, Readme, "README"},
     {:gettext, Gettext, "Gettext"},
     {:sobelow, Sobelow, "Sobelow"},
     {:dependencies, Dependencies, "Dependencies"}
@@ -216,6 +221,7 @@ defmodule Mix.Tasks.Quality do
     skip_doctor: :boolean,
     skip_docs: :boolean,
     skip_doc_links: :boolean,
+    skip_readme: :boolean,
     skip_gettext: :boolean,
     skip_sobelow: :boolean,
     skip_dependencies: :boolean,
@@ -243,6 +249,7 @@ defmodule Mix.Tasks.Quality do
     :gettext,
     :credo,
     :doctor,
+    :readme,
     :doc_links,
     :docs,
     :custom,

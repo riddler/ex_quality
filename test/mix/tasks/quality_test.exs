@@ -517,6 +517,7 @@ defmodule Mix.Tasks.QualityTest do
                "Doctor",
                "Docs",
                "Doc links",
+               "README",
                "Gettext",
                "Sobelow",
                "Credo",

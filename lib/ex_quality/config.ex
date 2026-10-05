@@ -67,6 +67,12 @@ defmodule ExQuality.Config do
   - `doc_links.enabled` - false (default) | :auto (on when `:ex_doc` is
     installed) | true (forced). Off by default like `docs`, for the same
     reason. See `ExQuality.Stages.DocLinks`
+  - `readme.enabled` - false (default) | :auto (on when `README.md` exists) |
+    true (forced). Off by default like `docs`. See `ExQuality.Stages.Readme`
+  - `readme.severity` - :warning (default: findings are reported and the
+    stage passes) | :error (any finding fails the stage)
+  - `readme.what_max_lines` - The longest the first paragraph under the
+    README's H1 may run (default: 6)
   - `gettext.source_locale` - The locale the source is written in, whose `.po`
     files are not checked (default: `"en"`)
   - `gettext.exclude` - Basenames to skip (default: `["errors.po"]`)
@@ -156,6 +162,15 @@ defmodule ExQuality.Config do
       # docs would find its gate red on upgrade. Same opt-in, same marker.
       enabled: false,
       disabled_by: :default
+    ],
+    readme: [
+      # Off by default: nearly every project has a README.md, so enabling on
+      # detection would move gates on upgrade. Warnings unless the project
+      # flips `severity: :error`.
+      enabled: false,
+      disabled_by: :default,
+      severity: :warning,
+      what_max_lines: 6
     ],
     gettext: [
       enabled: :auto,
@@ -281,6 +296,7 @@ defmodule ExQuality.Config do
     :doctor,
     :docs,
     :doc_links,
+    :readme,
     :gettext,
     :sobelow,
     :dependencies
@@ -470,6 +486,7 @@ defmodule ExQuality.Config do
 
   # The doc links stage runs nothing, but it is detected from :ex_doc like docs.
   defp unavailable_reason(:doc_links), do: unavailable_reason(:docs)
+  defp unavailable_reason(:readme), do: "no README.md"
 
   defp unavailable_reason(stage) do
     case ExQuality.Tools.package(stage) do
@@ -488,6 +505,8 @@ defmodule ExQuality.Config do
       docs: [available: tools.docs],
       # Needs no tool to run, but :auto means "when the project builds docs".
       doc_links: [available: tools.docs],
+      # Runs no tool either: :auto means "when there is a README to read".
+      readme: [available: File.exists?("README.md")],
       gettext: [available: tools.gettext],
       sobelow: [available: tools.sobelow],
       dependencies: [audit_available: tools.audit],
@@ -589,6 +608,7 @@ defmodule ExQuality.Config do
     :doctor,
     :docs,
     :doc_links,
+    :readme,
     :gettext,
     :sobelow,
     :dependencies
