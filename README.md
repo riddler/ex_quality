@@ -11,21 +11,23 @@
 
 # ExQuality
 
-Runs an Elixir project's quality tools in parallel and reports the run as one
-stage per tool, each with a status, a one-line summary, and findings that carry
-a `file:line`.
+ExQuality is one command, `mix quality`, that runs an Elixir project's quality
+tools in parallel and reports the whole gate in one shape. Each tool is one
+stage with a status, a one-line summary, and findings that carry a
+`file:line`, and the same results can be written as a JSON report for a script
+to route on.
 
-```
-mix quality
-```
-
-## The output is the point
+## Why: the output is the point
 
 Every quality tool prints in its own format, at its own length, and says
-nothing when it did not run. Reading a run means reading several walls of
-text and inferring what is missing from them.
+nothing when it did not run, so reading a gate made of several tools means
+reading several walls of text and inferring what is missing from them, and a
+script that wants to act on a failure has to parse each tool its own way. With
+ExQuality the gate is one run, one stream and one shape per stage: a passing
+stage costs one line, a skipped stage says why it was skipped, and a failure
+points at the `file:line` to fix.
 
-ExQuality normalises that. One run, one stream, one shape per stage:
+## What a run looks like
 
 ![A mix quality run: green passing stages, dim skipped stages, and a red failing stage with its finding printed below](https://raw.githubusercontent.com/riddler/ex_quality/main/assets/example-output.svg)
 
@@ -36,7 +38,7 @@ reads exactly the same minus the paint.
 Three properties follow from that, and they are what the tool is for:
 
 - **A passing stage costs one line.** Detail is printed for failures only. A
-  green run is nine lines, not nine tool reports.
+  green run is one line per stage, not one report per tool.
 - **Every stage the run considered is reported**, skipped ones included, with
   the reason. Absence is never something a reader has to interpret, and a stage
   that silently did not run cannot read as a stage that passed.
@@ -47,7 +49,7 @@ Three properties follow from that, and they are what the tool is for:
 Do not pipe a run through `head`, `tail` or `grep`. The output is already the
 minimum needed to act, and truncating it removes findings, not noise. If you
 want to route on a result rather than read it, ask for
-[a JSON report](#machine-readable-reports).
+[a JSON report](docs/reports.md).
 
 ## Installation
 
@@ -70,137 +72,24 @@ mix quality.init --skip-prompts
 `.quality.exs`. Nothing about it is required: ExQuality runs whatever the
 project already depends on.
 
-## Three modes
+## Basic usage
 
 ```bash
-mix quality --test-scope changed   # between edits
-mix quality --quick                # while coding
-mix quality                        # before committing, and in CI
+mix quality --test-scope changed     # between edits: only the tests covering changed code
+mix quality --quick                  # while coding: drops Dialyzer and the coverage threshold
+mix quality                          # before committing, and in CI: the full gate
+mix quality --report .quality.json   # the full gate, plus a JSON report to route on
 ```
 
-Full mode runs every enabled stage. Quick mode drops Dialyzer and the coverage
-threshold, the two slow stages - but it still runs every test, and on a large
-suite the tests are most of the wall clock. That is the difference between the
-first two lines above: `--quick` narrows *which checks run*, and `--test-scope`
-narrows *how much code they run over*, which is the expensive question.
-
-`--test-scope changed` runs only the test files covering the code you have
-changed, committed or not. Two rules keep the result readable:
-
-- **A scope that resolves to no test files runs the whole suite.** A green run of
-  nothing is worse than a slow one, because it fails in the safe-looking
-  direction.
-- **Coverage is reported as skipped, never as a number.** A percentage over a
-  subset of the suite is not a smaller truth, it is a different one.
-
-A project can name a bundle of settings in `.quality.exs`, so its docs and its
-agents point at one word instead of a flag list:
-
-```elixir
-profiles: [loop: [stages: [:format, :compile, :credo], test: [scope: :changed]]]
-```
-
-```bash
-mix quality --profile loop            # the bundle above
-mix quality --until-first-failure     # stop at the first thing to fix
-```
-
-See [Configuration](https://hexdocs.pm/ex_quality/configuration.html#test-scope).
-
-## Stages
-
-A stage is enabled when the project depends on the tool behind it. There is
-nothing to switch on - except Docs, Doc links, README and Diataxis, which are
-opt-in because nearly every published package has `:ex_doc` and a README, a
-docs manifest is how a project starts sorting its pages, and detection would
-move existing gates.
-
-| Stage | Runs | Enabled when |
-|---|---|---|
-| Format | `mix format` | a `.formatter.exs` exists |
-| Compile | `mix compile --warnings-as-errors`, dev and test | always |
-| Credo | `mix credo --format json` | `:credo` |
-| Dialyzer | `mix dialyzer --format short --format dialyxir` | `:dialyxir` |
-| Dependencies | `mix deps.unlock --check-unused`, `mix deps.audit --format json` | always; audit needs `:mix_audit` |
-| Doctor | `mix doctor` | `:doctor` |
-| Docs | `mix docs`, failing on any ExDoc warning | opt-in: `docs: [enabled: :auto]` in `.quality.exs` |
-| Doc links | reads `mix.exs`, the README and the docs extras; fails on a relative link HexDocs or hex.pm would break | opt-in: `doc_links: [enabled: :auto]` in `.quality.exs` |
-| README | reads `README.md`; warns when it lacks a What, a Why, an Install, one basic-usage snippet or a grouped Documentation section, or runs over its line ceiling | opt-in: `readme: [enabled: :auto]` in `.quality.exs` |
-| Diataxis | reads the quadrant paths in `.claude/diataxis.md`; warns when a page's language cues read as another type than its folder declares, or a how-to guide's H1 does not start with "How to" | opt-in: `diataxis: [enabled: :auto]` in `.quality.exs` |
-| Gettext | reads the `.po` files | `:gettext` |
-| Sobelow | `mix sobelow` | `:sobelow` |
-| Tests | `mix test` | always |
-| Coverage | `mix coveralls`, or `mix test --cover` | `:excoveralls`, or a threshold in `test_coverage` |
-
-Format runs first and fixes what it can. Compile runs next and gates the rest:
-there is no point analysing code that does not build. Everything after that
-runs in parallel and prints as it finishes, so a 0.5s stage is not held behind
-a 30s one.
-
-Umbrella projects are first-class: tools are detected across every child app,
-findings are tagged with the app they came from, and coverage is aggregated
-across the suite. See [Umbrella projects](https://hexdocs.pm/ex_quality/umbrella.html).
-
-## Machine-readable reports
-
-The exit code says a run failed, not what failed. A script that wants to route
-on the result - hand the Credo findings to one fixer, the test failures to
-another - asks for a report instead of scraping the console:
-
-```bash
-mix quality --report .quality.json   # human output on stdout, report to a file
-mix quality --format json            # report on stdout, human output on stderr
-mix quality --report -               # the same, spelled the way a pipe reads
-```
-
-```json
-{
-  "status": "error",
-  "version": "0.6.0",
-  "duration_ms": 5014,
-  "profile": null,
-  "scope": "all",
-  "base_ref": null,
-  "stages": [
-    {
-      "name": "Dialyzer",
-      "status": "skipped",
-      "summary": "--quick",
-      "stats": {},
-      "findings": [],
-      "duration_ms": 0
-    },
-    {
-      "name": "Dependencies",
-      "status": "error",
-      "summary": "1 vulnerability (1 moderate)",
-      "stats": {"vulnerabilities": 1, "vulnerabilities_by_severity": {"moderate": 1}},
-      "findings": [
-        {
-          "file": "mix.lock", "line": null, "column": null,
-          "app": null, "severity": "error",
-          "check": "GHSA-rhv4-8758-jx7v",
-          "message": "decimal 2.3.0: Unbounded exponent in `Decimal.new` enables unauthenticated DoS (moderate severity, patched in 3.0.0)"
-        }
-      ],
-      "duration_ms": 2400
-    }
-  ]
-}
-```
-
-Every stage carries the same keys whatever its status, so a consumer reads one
-field rather than branching. The report is built from the same results the
-human output is rendered from, so the two can never disagree.
-
-`scope` says how much of the suite the run covered, and is what lets anything
-that ratchets a number, moves a baseline or gates a merge refuse to move on a
-narrow run: a green run over three test files and a green full run are different
-claims. Full schema in [Reports](https://hexdocs.pm/ex_quality/reports.html).
+A stage is enabled when the project depends on the tool behind it, so there is
+nothing to switch on for the common tools. `--quick` narrows *which checks
+run*; `--test-scope` narrows *how much code they run over*. Neither measures
+coverage, so neither is the full gate: run a bare `mix quality` for that. The
+flags, profiles and test scope are in [Configuration](docs/configuration.md).
 
 ## Working with a coding agent
 
-ExQuality ships a [`usage-rules.md`](https://hexdocs.pm/ex_quality/usage-rules.html) for AI coding assistants,
+ExQuality ships a [`usage-rules.md`](usage-rules.md) for AI coding assistants,
 readable by [usage_rules](https://hex.pm/packages/usage_rules). It tells an
 agent which command to run for which situation, how to read a failure, not to
 truncate the output, and which fixes are never acceptable - lowering a coverage
@@ -208,7 +97,7 @@ threshold, adding a `.sobelow-conf` ignore - because a tool silencing its own
 findings is a regression dressed as a pass.
 
 Two things make an agent loop cheap, and they pull in opposite directions. The
-output properties above are one: a passing run costs nine lines of context
+output properties above are one: a passing run costs a line per stage of context
 instead of several tool reports, and a failing one gives `file:line` targets
 without a second command. The other is that the run has to be quick enough to be
 worth repeating. An aggregate command that always runs the full suite is one an
@@ -219,11 +108,24 @@ stays distinguishable from it.
 
 ## Documentation
 
-- [Configuration](https://hexdocs.pm/ex_quality/configuration.html) - `.quality.exs`, CLI flags, precedence
-- [Stages](https://hexdocs.pm/ex_quality/stages.html) - what each stage runs, reports, and how thresholds are sourced
-- [Reports](https://hexdocs.pm/ex_quality/reports.html) - the JSON report schema
-- [Umbrella projects](https://hexdocs.pm/ex_quality/umbrella.html) - detection, findings, coverage, Sobelow
-- [CI and pre-commit](https://hexdocs.pm/ex_quality/ci.html) - pipelines, PLT caching, hooks
+- Do
+  - [How to run the gate in CI and before each commit](docs/ci.md) - a pipeline step, attesting a full run, a warm Dialyzer PLT, a container image and a pre-commit hook
+  - [Routing on a report](docs/reports.md#routing-on-a-report) - reading which stages failed and their findings from a script, a section of the Reports reference until its guide page exists
+- Look up
+  - [Configuration](docs/configuration.md) - the CLI flags, the `.quality.exs` keys, test scope, profiles, custom stages and precedence
+  - [Stages](docs/stages.md) - what each stage runs, when it is enabled, what it reports and where its threshold comes from
+  - [Reports](docs/reports.md) - the JSON report's fields: the top level, each stage and each finding
+  - [Umbrella projects](docs/umbrella.md) - how detection, findings, tests, coverage and Sobelow behave at an umbrella root
+  - [Usage rules](usage-rules.md) - the rules a coding agent reads: which command for which situation and which fixes are never acceptable
+  - [Changelog](CHANGELOG.md) - what changed in each version, and how to enable each new stage
+
+## Compatibility
+
+- Elixir `~> 1.14`.
+- One runtime dependency, `jason ~> 1.4`. ExQuality itself is a dev-only
+  dependency (`only: :dev, runtime: false`).
+- The tools it runs are the project's own dependencies, at the versions the
+  project pins; a stage is reported as skipped when its tool is not installed.
 
 ## License
 
