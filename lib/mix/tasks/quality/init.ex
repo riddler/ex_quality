@@ -308,6 +308,13 @@ defmodule Mix.Tasks.Quality.Init do
       #   enabled: :auto  # :auto | true | false (default)
       # ],
 
+      # The README's shape: what, why, install, one usage snippet, a grouped
+      # Documentation map, a length ceiling (opt-in: off unless enabled here)
+      # readme: [
+      #   enabled: :auto,     # :auto | true | false (default)
+      #   severity: :warning  # :warning (default) | :error
+      # ],
+
       # Gettext translation completeness
       # gettext: [
       #   enabled: :auto  # :auto | true | false

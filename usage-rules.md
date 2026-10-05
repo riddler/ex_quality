@@ -133,6 +133,7 @@ underlying tool to get detail that is already on screen.
 | Doctor | documentation coverage below the project's threshold | writing the missing `@moduledoc`/`@doc` |
 | Docs | an ExDoc warning - a reference to a function that does not exist, a link or anchor that resolves nowhere | fixing the reference at `file:line`; do not delete the doc to silence it |
 | Doc links | a relative link HexDocs or hex.pm would break - a target that is not an extra, not in the package, or rewritten to another extra - or two extras sharing a basename, each named by its `check` | linking to a published extra, adding the file to `extras` or `package: [files: ...]`, or linking an unpublished file by absolute URL; do not drop the link to silence it |
+| README | a part of the introduction missing or out of shape - no What, Why, Install or basic usage, more than one usage snippet, Documentation links not under group items, or over the line ceiling - each named by its `check` | adding the missing part, moving detail out to a page the Documentation section links, or nesting the links under group items; do not raise `readme_max_lines` or drop a section to silence it |
 | Gettext | missing or fuzzy translations | translating them, or resolving the fuzzy entries |
 | any stage | `mix <task> is aliased in mix.exs` | renaming the alias, see below |
 | a custom stage | whatever the project's own check reports | fixing it at `file:line`; the check is the project's, so ask before changing what it enforces |

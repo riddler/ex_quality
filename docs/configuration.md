@@ -26,6 +26,7 @@ mix quality --skip-dialyzer       # skip type checking
 mix quality --skip-doctor         # skip documentation coverage
 mix quality --skip-docs           # skip the ExDoc warnings check
 mix quality --skip-doc-links      # skip the relative link rules
+mix quality --skip-readme         # skip the README shape check
 mix quality --skip-gettext        # skip translation checks
 mix quality --skip-sobelow        # skip security analysis
 mix quality --skip-dependencies   # skip unused deps and the security audit
@@ -115,6 +116,19 @@ A keyword list at the project root. Every key is optional.
     enabled: false
   ],
 
+  readme: [
+    # Checks README.md's shape: a What under the H1, a Why, an Install with
+    # a dependency snippet, one basic-usage code block, a Documentation
+    # section whose links sit under group items, and a length ceiling.
+    # Opt-in: :auto runs it when README.md exists; true forces. See
+    # docs/stages.md.
+    enabled: false,
+    # :warning reports each finding and passes; :error fails on any.
+    severity: :warning,
+    # The longest the first paragraph under the H1 may run, in lines.
+    what_max_lines: 6
+  ],
+
   gettext: [
     enabled: :auto,
     # The locale the source is written in, whose .po files are not checked.
@@ -167,10 +181,21 @@ Every stage takes one of three values:
 | `true` | always run; errors if the tool is missing |
 | `false` | never run; reported as `○ Credo: skipped (disabled in .quality.exs)` |
 
-The Docs and Doc links stages are the exceptions to the default: they ship
-`enabled: false`, and `docs: [enabled: :auto]` and
-`doc_links: [enabled: :auto]` are how a project opts in. See
-[stages.md](stages.md#docs) and [stages.md](stages.md#doc-links).
+The Docs, Doc links and README stages are the exceptions to the default:
+they ship `enabled: false`, and `docs: [enabled: :auto]`,
+`doc_links: [enabled: :auto]` and `readme: [enabled: :auto]` are how a
+project opts in. See [stages.md](stages.md#docs),
+[stages.md](stages.md#doc-links) and [stages.md](stages.md#readme).
+
+### `severity` (README)
+
+The README stage reports its findings as warnings by default: each one is
+named in the stage's summary line and carried in the JSON report, and the
+stage passes. `readme: [severity: :error]` is the per-project flip: every
+finding becomes an error and fails the stage. Any other value fails the
+stage with a message naming the two it accepts. The line ceiling is not
+set here: it is `readme_max_lines` in the front matter of
+`.claude/diataxis.md`, 250 when that file or key is absent.
 
 ## Test scope
 

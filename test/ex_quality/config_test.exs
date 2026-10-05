@@ -120,6 +120,43 @@ defmodule ExQuality.ConfigTest do
       assert Config.skip(config, :doc_links) == {":ex_doc not installed", :project}
     end
 
+    test "skip_readme CLI option names the dashed switch as the reason" do
+      config = Config.load(skip_readme: true)
+
+      assert config[:readme][:enabled] == false
+      assert Config.skip(config, :readme) == {"--skip-readme", :run}
+    end
+
+    test "readme is off by default, warns when enabled, and says how to opt in" do
+      config = Config.load()
+
+      assert config[:readme][:disabled_by] == :default
+      assert config[:readme][:severity] == :warning
+      assert config[:readme][:what_max_lines] == 6
+      refute Config.stage_enabled?(config, :readme)
+
+      assert Config.skip(config, :readme) ==
+               {"opt-in; set readme: [enabled: :auto] in .quality.exs", :project}
+    end
+
+    test "readme enabled: :auto follows whether README.md exists" do
+      # The suite runs from this repository's root, which has a README.md.
+      config = Config.load() |> Keyword.update!(:readme, &Keyword.put(&1, :enabled, :auto))
+
+      assert config[:readme][:available] == true
+      assert Config.stage_enabled?(config, :readme)
+      assert Config.skip(config, :readme) == nil
+    end
+
+    test "readme enabled: :auto with no README.md names the missing file" do
+      config =
+        Config.load()
+        |> Keyword.update!(:readme, &Keyword.merge(&1, enabled: :auto, available: false))
+
+      refute Config.stage_enabled?(config, :readme)
+      assert Config.skip(config, :readme) == {"no README.md", :project}
+    end
+
     test "skip_dependencies CLI option sets dependencies enabled to false" do
       config = Config.load(skip_dependencies: true)
 
