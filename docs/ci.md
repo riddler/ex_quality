@@ -1,4 +1,4 @@
-# CI and pre-commit
+# How to run the gate in CI and before each commit
 
 ## In a pipeline
 
