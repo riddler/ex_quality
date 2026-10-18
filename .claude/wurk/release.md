@@ -53,12 +53,29 @@ Placed where the skill's changelog step would have been.
 
 ### The link-reference block
 
-`CHANGELOG.md` ends with a Keep a Changelog link-reference block
-(`[Unreleased]: .../compare/vA...HEAD`, one `[X.Y.Z]:` line per version). It
-was last maintained by a release prep at 0.13.0; later preps did not touch it,
-and some of its older lines are misnumbered. Whether to repair and resume it
-is the operator's call. Until that is decided, a release prep leaves it
-alone: repairing it is a change to the file, not a release step.
+`CHANGELOG.md` ends with a Keep a Changelog link-reference block: one
+`[Unreleased]: .../compare/vNEWEST...HEAD` line, then one `[X.Y.Z]:` line per
+version heading, newest first, each
+`.../compare/vPREV...vX.Y.Z`; the oldest, `[0.1.0]`, links its release tag
+page. It is maintained. It was repaired on 2026-10-18 (the operator's answer
+to whether to repair and resume it was "Repair, add it"): every version
+heading has a line, no key repeats, and every range ends at its own version.
+One version has no tag: the 0.14.1 prep was never tagged, so its two ranges
+use the prep commit `f649263` (an ancestor of `main`) in place of `v0.14.1`.
+
+A release prep keeps the block current, inside `CHANGELOG.md`, in the same
+commit as the promotion above:
+
+1. Move `[Unreleased]`'s base to the new tag: `compare/vX.Y.Z...HEAD`.
+2. Add the new version's line directly below `[Unreleased]`:
+   `[X.Y.Z]: https://github.com/riddler/ex_quality/compare/vPREV...vX.Y.Z`,
+   where `vPREV` is the version heading just below the new one.
+
+The new tag does not exist when the prep is cut (it is pushed after the prep
+merges), so the new lines resolve once the tag is pushed. Check the block
+before committing: one line per version heading plus `[Unreleased]`, in
+heading order, and every `vA` or `vB` it names is a tag in `git tag -l 'v*'`
+or the new version.
 
 ## The README install pin
 
