@@ -187,7 +187,8 @@ defmodule ExQuality.Stages.Docs do
   # An indented line continues the open block, and so does a `└─` location
   # line at the start of the line: a warning printed without a source excerpt
   # puts its location there. A blank line closes the block.
-  defp continues_block?(line), do: String.match?(line, ~r/^(\s+\S|└─)/u)
+  defp continues_block?(line),
+    do: String.match?(line, ~r/^\s+\S/) or String.starts_with?(line, "└─")
 
   defp chunk_rest([]), do: {:cont, []}
   defp chunk_rest(block), do: {:cont, Enum.reverse(block), []}
