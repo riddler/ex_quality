@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Docs stage reads a warning ExDoc prints without a source excerpt, whose `└─ file:line:` location line starts at column 0, as a finding at that `file:line`.** When ExDoc cannot read the source line a warning points at, Elixir 1.18 prints the `warning:` line and its `└─` location line both at the start of the line, and the stage closed the warning's block on the location line; the warning then had no location, and because findings are reported only when every warning has one, the whole run fell back to the tool's output with no findings. The stage still failed, so no warning was hidden; it lost the findings. A `└─` line at the start of the line now continues the open warning, and a blank line still closes it
+
 ## [0.16.0] - 2026-10-05
 
 ### Added

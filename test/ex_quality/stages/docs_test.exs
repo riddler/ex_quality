@@ -178,6 +178,70 @@ defmodule ExQuality.Stages.DocsTest do
     end
   end
 
+  # A warning whose source line ExDoc cannot read prints no excerpt: on Elixir
+  # 1.18 both the `warning:` line and its `└─` location line start at column
+  # 0. Captured from a real `mix docs` run (Elixir 1.18.3, ExDoc 0.40.3) over a
+  # module created with a `file:` that does not exist on disk, beside an
+  # ordinary diagnostic from the same run. `mix docs` exits 1 over it.
+  @no_excerpt_output """
+  Generating docs...
+  warning: documentation references function "Probe.created_missing/0" but it is undefined or private
+  └─ generated/created.ex:121: Probe.Created (module)
+
+      warning: documentation references function "Probe.missing/1" but it is undefined or private
+      │
+    3 │   Module doc that points at `Probe.missing/1`.
+      │   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      │
+      └─ lib/probe.ex:3: Probe (module)
+
+  Documents have been generated, but generation for html format failed due to warnings while using the --warnings-as-errors option
+  """
+
+  describe "run/1 - a warning printed without a source excerpt" do
+    # Mutation: the continuation match back to `~r/^\s+\S/` alone - the
+    # column-0 location line closes the block and both findings are lost.
+    test "a column-0 location line continues the block and gives the finding's file:line" do
+      System
+      |> expect(:cmd, fn "mix", ["docs" | _rest], _opts -> {@no_excerpt_output, 1} end)
+
+      result = Docs.run([])
+
+      assert result.status == :error
+      assert result.summary == "2 warnings"
+
+      assert [created, probe] = Stage.findings(result)
+
+      assert {created.file, created.line} == {"generated/created.ex", 121}
+      assert {probe.file, probe.line} == {"lib/probe.ex", 3}
+
+      assert created.message ==
+               ~s(documentation references function "Probe.created_missing/0" but it is undefined or private)
+
+      assert created.raw =~ "└─ generated/created.ex:121: Probe.Created (module)"
+    end
+
+    # Mutation: a blank line also continues the block - the location line
+    # after it is read as this warning's and a finding appears.
+    test "a blank line still closes the block before a column-0 location line" do
+      output = """
+      warning: documentation references function "Probe.created_missing/0" but it is undefined or private
+
+      └─ generated/created.ex:121: Probe.Created (module)
+      """
+
+      System
+      |> expect(:cmd, fn "mix", ["docs" | _rest], _opts -> {output, 1} end)
+
+      result = Docs.run([])
+
+      assert result.status == :error
+      assert result.summary == "1 warning"
+      assert Stage.findings(result) == []
+      assert result.output == output
+    end
+  end
+
   describe "run/1 - warnings as errors" do
     test "a non-zero exit over warnings the parse misses is an error naming them" do
       output = """
