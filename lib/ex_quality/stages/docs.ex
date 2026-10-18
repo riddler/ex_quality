@@ -19,9 +19,11 @@ defmodule ExQuality.Stages.Docs do
   Both shapes ExDoc prints a warning in are read: the Elixir 1.18 diagnostic,
   an indented `warning:` line whose location closes the block on a
   `└─ file:line:` line, and the older form, a `warning:` line at the start of
-  the line followed by an indented `file:line:` line. A warning ExDoc reports
-  without a location falls back to the tool's output verbatim, so a warning is
-  never hidden behind a parse.
+  the line followed by an indented `file:line:` line. A diagnostic printed
+  without a source excerpt starts both its `warning:` line and its `└─`
+  location line at the start of the line, and is read the same way. A warning
+  ExDoc reports without a location falls back to the tool's output verbatim, so
+  a warning is never hidden behind a parse.
 
   ## Opt-in
 
@@ -148,6 +150,12 @@ defmodule ExQuality.Stages.Docs do
   #          │
   #          └─ README.md:118: (file)
   #
+  # A warning whose source line ExDoc cannot read carries no excerpt, and then
+  # both lines start at column 0:
+  #
+  #     warning: documentation references function "Foo.bar/1" but it is undefined or private
+  #     └─ generated/foo.ex:121: Foo (module)
+  #
   # and earlier versions print it unindented, the location on its own line:
   #
   #     warning: documentation references function Foo.bar/1 but it is
@@ -165,7 +173,7 @@ defmodule ExQuality.Stages.Docs do
       String.match?(line, ~r/^\s*warning:/) ->
         if block == [], do: {:cont, [line]}, else: {:cont, Enum.reverse(block), [line]}
 
-      block != [] and String.match?(line, ~r/^\s+\S/) ->
+      block != [] and continues_block?(line) ->
         {:cont, [line | block]}
 
       block != [] ->
@@ -175,6 +183,11 @@ defmodule ExQuality.Stages.Docs do
         {:cont, []}
     end
   end
+
+  # An indented line continues the open block, and so does a `└─` location
+  # line at the start of the line: a warning printed without a source excerpt
+  # puts its location there. A blank line closes the block.
+  defp continues_block?(line), do: String.match?(line, ~r/^(\s+\S|└─)/u)
 
   defp chunk_rest([]), do: {:cont, []}
   defp chunk_rest(block), do: {:cont, Enum.reverse(block), []}

@@ -187,9 +187,10 @@ zero once it gets there.
 Each warning becomes a finding at the `file:line` ExDoc reports, in either
 shape ExDoc prints it: the Elixir 1.18 diagnostic, an indented `warning:` line
 whose location closes the block on a `└─ file:line:` line, or the older form
-with the `warning:` line at the start of the line. A warning without a
-location falls back to the tool's full output, so nothing is hidden behind a
-parse.
+with the `warning:` line at the start of the line. A diagnostic printed
+without a source excerpt, its `warning:` line and its `└─` location line both
+at the start of the line, is read the same way. A warning without a location
+falls back to the tool's full output, so nothing is hidden behind a parse.
 
 The build passes `--warnings-as-errors`, so on ExDoc 0.36 and later a warning
 printed in a shape the stage does not read still fails the stage, as
