@@ -159,15 +159,23 @@ defmodule ExQuality.Stages.DocsTest do
       assert runbook.raw =~ "└─ guides/runbook.md:479: (file)"
     end
 
+    # The shape Elixir 1.18.3 and ExDoc 0.40.3 print for a warning whose
+    # location has no line number: no excerpt, and both lines at column 0.
+    # Captured from a real `mix docs` run over a guide linking a missing file;
+    # `mix docs` exits 1 over it.
+    # Mutation: the location parse reads a missing line number as line 0 - a
+    # finding appears instead of the verbatim fallback.
     test "a location line with no line number falls back to output verbatim" do
       output = """
-          warning: documentation references file "missing.md" but it does not exist
-          │
-          └─ lib/my_app.ex: MyApp (module)
+      Generating docs...
+      warning: documentation references file "nowhere.md" but it does not exist
+      └─ guide.md: (file)
+
+      Documents have been generated, but generation for html format failed due to warnings while using the --warnings-as-errors option
       """
 
       System
-      |> expect(:cmd, fn "mix", ["docs" | _rest], _opts -> {output, 0} end)
+      |> expect(:cmd, fn "mix", ["docs" | _rest], _opts -> {output, 1} end)
 
       result = Docs.run([])
 
@@ -257,6 +265,29 @@ defmodule ExQuality.Stages.DocsTest do
 
       assert result.status == :error
       assert result.summary == "ExDoc reported warnings (see output)"
+      assert result.output == output
+    end
+
+    # The compiler's own failure under --warnings-as-errors, as Elixir 1.18.3
+    # prints it when `mix docs` compiles a project that sets
+    # `elixirc_options: [warnings_as_errors: true]`. It names the option but is
+    # not ExDoc's sentence.
+    # Mutation: the summary matches the bare option name again - this failure
+    # reads as ExDoc's warnings.
+    test "a failure that only names the option is not read as ExDoc's warnings" do
+      output = """
+      Compiling 1 file (.ex)
+      a warning in some shape this stage does not know
+      Compilation failed due to warnings while using the --warnings-as-errors option
+      """
+
+      System
+      |> expect(:cmd, fn "mix", ["docs" | _rest], _opts -> {output, 1} end)
+
+      result = Docs.run([])
+
+      assert result.status == :error
+      assert result.summary == "mix docs failed (see output)"
       assert result.output == output
     end
   end

@@ -131,10 +131,14 @@ defmodule ExQuality.Stages.Docs do
     end
   end
 
-  # ExDoc exits non-zero under --warnings-as-errors when it warned; if the
-  # parse found none of those warnings, say that rather than "failed".
+  # ExDoc exits non-zero under --warnings-as-errors when it warned, and says so
+  # in its own sentence; if the parse found none of those warnings, say that
+  # rather than "failed". The sentence is matched whole: the compiler's failure
+  # under its own --warnings-as-errors ends in the same words.
+  @exdoc_warnings_failure ~r/Documents have been generated, but generation for .+ failed due to warnings while using the --warnings-as-errors option/
+
   defp failure_summary(output) do
-    if String.contains?(output, "--warnings-as-errors"),
+    if String.match?(output, @exdoc_warnings_failure),
       do: "ExDoc reported warnings (see output)",
       else: "mix docs failed (see output)"
   end
